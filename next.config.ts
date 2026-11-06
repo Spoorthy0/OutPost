@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  images: {
+    // Profile pictures stored from Clerk (User.imageUrl).
+    remotePatterns: [{ protocol: "https", hostname: "img.clerk.com" }],
+  },
   turbopack: {
     rules: {
       "*.css": {
