@@ -11,14 +11,6 @@ const nextConfig: NextConfig = {
     // Profile pictures stored from Clerk (User.imageUrl).
     remotePatterns: [{ protocol: "https", hostname: "img.clerk.com" }],
   },
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
 };
 
 export default nextConfig;

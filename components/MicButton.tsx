@@ -123,3 +123,6 @@ export default function MicButton({ value, onChange, onListeningChange, disabled
     </Button>
   );
 }
+
+// Named export too, for `import { MicButton } from "@/components/MicButton"`.
+export { MicButton };

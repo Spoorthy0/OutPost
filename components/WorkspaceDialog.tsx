@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 type EditableWorkspace = { id: string; name: string; description: string | null };
 
@@ -71,6 +72,7 @@ function WorkspaceForm({ workspace, onDone }: { workspace?: EditableWorkspace; o
     if (!result) return;
     onDone();
     if ("limit" in result) return openUpgrade(UPGRADE_REASONS[result.limit]);
+    toast.success("Workspace created");
     router.push(`/workspace/${result.workspace.id}`);
   };
 
