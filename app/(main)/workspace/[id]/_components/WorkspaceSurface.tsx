@@ -12,7 +12,7 @@ const CanvasEditor = dynamic(() => import("./CanvasEditor").then((m) => m.Canvas
   ssr: false,
   loading: () => <SurfaceLoading label="Loading canvas" />,
 });
-const DocEditor = dynamic(() => import("./DocEditor").then((m) => m.DocEditor), {
+const DocEditor = dynamic(() => import("@/components/DocEditor").then((m) => m.DocEditor), {
   ssr: false,
   loading: () => <SurfaceLoading label="Loading doc" />,
 });
@@ -49,32 +49,35 @@ const writeView = (view: View) => {
 export function WorkspaceSurface({
   workspaceId,
   initialDoc,
+  initialDocState,
   initialCanvas,
   left,
   right,
 }: {
   workspaceId: string;
   initialDoc: PartialBlock[] | null;
+  initialDocState: string | null;
   initialCanvas: TLEditorSnapshot | null;
   left: ReactNode;
   right: ReactNode;
 }) {
   const view = useSyncExternalStore(subscribeView, readView, () => "both" as View);
-  // Latest doc blocks, copied into docSeed on a view switch, so a re-mounted doc editor starts
+  // Latest Yjs state, copied into docSeed on a view switch, so a re-mounted doc editor starts
   // from the current text rather than what the page first loaded.
-  const latestDoc = useRef(initialDoc);
-  const [docSeed, setDocSeed] = useState(initialDoc);
+  const latestDocState = useRef(initialDocState);
+  const [docSeed, setDocSeed] = useState(initialDocState);
 
   const setView = (next: View) => {
-    setDocSeed(latestDoc.current);
+    setDocSeed(latestDocState.current);
     writeView(next);
   };
 
   const doc = (
     <DocEditor
       workspaceId={workspaceId}
-      initialContent={docSeed}
-      onContentChange={(blocks) => (latestDoc.current = blocks)}
+      initialContent={initialDoc}
+      initialState={docSeed}
+      onStateChange={(state) => (latestDocState.current = state)}
     />
   );
   const canvas = <CanvasEditor workspaceId={workspaceId} initialSnapshot={initialCanvas} />;

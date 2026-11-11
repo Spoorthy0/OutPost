@@ -38,7 +38,7 @@ async function Workspace({ params, searchParams }: PageProps<"/workspace/[id]">)
       id: true,
       name: true,
       shareToken: true,
-      doc: { select: { content: true } },
+      doc: { select: { content: true, yjsState: true } },
       canvas: { select: { content: true } },
       ...workspaceOwnerSelect,
     },
@@ -54,6 +54,9 @@ async function Workspace({ params, searchParams }: PageProps<"/workspace/[id]">)
       <WorkspaceSurface
         workspaceId={workspace.id}
         initialDoc={(workspace.doc?.content as PartialBlock[] | null) ?? null}
+        initialDocState={
+          workspace.doc?.yjsState ? Buffer.from(workspace.doc.yjsState).toString("base64") : null
+        }
         initialCanvas={(workspace.canvas?.content as TLEditorSnapshot | null) ?? null}
         left={
           <>

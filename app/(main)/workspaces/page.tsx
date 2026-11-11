@@ -1,14 +1,46 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { checkUser } from "@/actions/check-user";
 import { prisma } from "@/lib/prisma";
 import { getWorkspaceScope } from "@/lib/workspace-scope";
-import { withLastActivity, workspaceCardSelect } from "@/lib/workspace-status";
+import { WORKSPACE_STATUSES, withLastActivity, workspaceCardSelect } from "@/lib/workspace-status";
 import { Button } from "@/components/ui/button";
 import { WorkspaceDialog } from "@/components/WorkspaceDialog";
 import { WorkspaceBoard } from "./_components/WorkspaceBoard";
 
-export default async function WorkspacesPage() {
+// With cacheComponents on, reading the request (checkUser and getWorkspaceScope use Clerk's session)
+// must happen inside <Suspense>, so the skeleton shows instantly and the board streams in.
+export default function WorkspacesPage() {
+  return (
+    <div className="p-8">
+      <Suspense fallback={<WorkspacesSkeleton />}>
+        <Workspaces />
+      </Suspense>
+    </div>
+  );
+}
+
+function WorkspacesSkeleton() {
+  return (
+    <div aria-hidden>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+          <div className="h-7 w-44 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="h-9 w-36 animate-pulse rounded-md bg-muted" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {WORKSPACE_STATUSES.map((column) => (
+          <div key={column.status} className="h-64 animate-pulse rounded-lg bg-white/3" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function Workspaces() {
   const user = await checkUser();
   if (!user) redirect("/sign-in");
 
@@ -20,7 +52,7 @@ export default async function WorkspacesPage() {
   });
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">{orgName}</p>
@@ -43,6 +75,6 @@ export default async function WorkspacesPage() {
       ) : (
         <WorkspaceBoard workspaces={workspaces.map(withLastActivity)} />
       )}
-    </div>
+    </>
   );
 }

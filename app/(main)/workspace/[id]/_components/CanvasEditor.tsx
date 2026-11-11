@@ -25,7 +25,7 @@ import { saveCanvasContent } from "@/actions/canvas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeUtil";
 import { AddEntityTableButton } from "@/components/EntityTable/AddEntityTableButton";
-import { snapArrowBindingToRow } from "@/components/EntityTable/snapArrowToRow";
+import { registerArrowRowSnapping } from "@/components/EntityTable/snapArrowToRow";
 import { useWorkspaceEditors } from "@/components/WorkspaceEditorsContext";
 import { colorForUser } from "@/lib/utils";
 
@@ -141,20 +141,14 @@ export function CanvasEditor({
       { source: "user", scope: "document" }
     );
 
-    // Arrows drawn onto an ERD table snap to the nearest row (see snapArrowToRow.ts).
-    editor.store.listen(
-      (entry) => {
-        for (const record of Object.values(entry.changes.added)) {
-          if (record.typeName === "binding" && record.type === "arrow") {
-            snapArrowBindingToRow(editor, record);
-          }
-        }
-      },
-      { source: "user", scope: "all" }
-    );
+    // Arrows bound to an ERD table snap to the nearest row and stay on that column (see snapArrowToRow.ts).
+    const stopRowSnapping = registerArrowRowSnapping(editor);
 
     // Clear it on unmount (e.g. switching to the Document view) so nothing keeps a disposed editor.
-    return () => setCanvasEditor(null);
+    return () => {
+      stopRowSnapping();
+      setCanvasEditor(null);
+    };
   };
 
   return (
