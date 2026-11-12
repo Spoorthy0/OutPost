@@ -7,7 +7,9 @@ import {
   type TLArrowBinding,
   type TLArrowShape,
   type TLGeoShape,
+  type TLShape,
   type TLShapeId,
+  type TLShapePartial,
 } from "tldraw";
 import type { z } from "zod";
 import type { DocEditor } from "@/components/WorkspaceEditorsContext";
@@ -16,6 +18,8 @@ import {
   DEFAULT_W,
   createEntityTable,
   heightFor,
+  newFieldId,
+  type EntityField,
   type EntityTableShape,
 } from "@/components/EntityTable/EntityTableShapeUtil";
 import { connectTableRows } from "@/components/EntityTable/snapArrowToRow";
@@ -23,6 +27,9 @@ import {
   clearCanvasInput,
   createDiagramInput,
   createTablesInput,
+  editDocInput,
+  editShapesInput,
+  updateTableInput,
   writeDocInput,
   type AgentContext,
 } from "@/lib/agent-tools";
@@ -50,34 +57,46 @@ function describeCanvas(editor: Editor) {
     return editor.getShapeUtil(shape).getText(shape)?.trim() || shape.type;
   };
 
-  const lines = shapes.slice(0, MAX_SUMMARY_SHAPES).map((shape) => {
+  // Each line starts with the shape id, so edit_shapes can target it.
+  const lines = shapes.slice(0, MAX_SUMMARY_SHAPES).map((shape) => `- [${shape.id}] ${describeShape(shape)}`);
+
+  if (shapes.length > MAX_SUMMARY_SHAPES) lines.push(`- …and ${shapes.length - MAX_SUMMARY_SHAPES} more`);
+  return lines.join("\n");
+
+  function describeShape(shape: TLShape) {
     if (shape.type === ENTITY_TABLE_TYPE) {
       const { name, fields } = (shape as EntityTableShape).props;
       const columns = fields.map((f) => `${f.name} ${f.type}${f.pk ? " PK" : ""}${f.fk ? " FK" : ""}`);
-      return `- table ${name} (${columns.join(", ")})`;
+      return `table ${name} (${columns.join(", ")})`;
     }
     if (shape.type === "arrow") {
       const bindings = editor.getBindingsFromShape<TLArrowBinding>(shape, "arrow");
       const start = bindings.find((b) => b.props.terminal === "start");
       const end = bindings.find((b) => b.props.terminal === "end");
       const label = editor.getShapeUtil(shape).getText(shape)?.trim();
-      return `- arrow ${start ? nameOf(start.toId) : "·"} → ${end ? nameOf(end.toId) : "·"}${label ? ` "${label}"` : ""}`;
+      return `arrow ${start ? nameOf(start.toId) : "·"} → ${end ? nameOf(end.toId) : "·"}${label ? ` "${label}"` : ""}`;
     }
     const text = editor.getShapeUtil(shape).getText(shape)?.trim();
     const kind = shape.type === "geo" ? (shape as TLGeoShape).props.geo : shape.type;
-    return `- ${kind}${text ? ` "${text}"` : ""}`;
-  });
+    return `${kind}${text ? ` "${text}"` : ""}`;
+  }
+}
 
-  if (shapes.length > MAX_SUMMARY_SHAPES) lines.push(`- …and ${shapes.length - MAX_SUMMARY_SHAPES} more`);
-  return lines.join("\n");
+// One entry per top-level block, prefixed with its id so edit_doc can target it.
+function describeDoc(editor: DocEditor) {
+  if (isBlank(editor)) return "";
+  let doc = editor.document
+    .map((block) => {
+      const markdown = editor.blocksToMarkdownLossy([block]).trim();
+      return `[${block.id}] ${markdown.replace(/\n/g, "\n    ")}`;
+    })
+    .join("\n");
+  if (doc.length > MAX_DOC_CHARS) doc = `${doc.slice(0, MAX_DOC_CHARS)}\n…(truncated)`;
+  return doc;
 }
 
 export function buildAgentContext({ canvasEditor, docEditor }: Editors): AgentContext {
-  let doc = "";
-  if (docEditor) {
-    doc = docEditor.blocksToMarkdownLossy(docEditor.document).trim();
-    if (doc.length > MAX_DOC_CHARS) doc = `${doc.slice(0, MAX_DOC_CHARS)}\n…(truncated)`;
-  }
+  const doc = docEditor ? describeDoc(docEditor) : "";
   return {
     canvasOpen: !!canvasEditor,
     docOpen: !!docEditor,
@@ -265,6 +284,77 @@ function createDiagram(editor: Editor, input: z.infer<typeof createDiagramInput>
   return { ok: true, summary: `Drew ${input.nodes.length} node(s) and ${edges.length} connection(s).` };
 }
 
+function findTable(editor: Editor, name: string) {
+  const wanted = name.toLowerCase();
+  return editor
+    .getCurrentPageShapes()
+    .find(
+      (shape): shape is EntityTableShape =>
+        shape.type === ENTITY_TABLE_TYPE && (shape as EntityTableShape).props.name.toLowerCase() === wanted
+    );
+}
+
+function updateTable(editor: Editor, input: z.infer<typeof updateTableInput>): ToolResult {
+  const table = findTable(editor, input.table);
+  if (!table) return { ok: false, error: `No table named "${input.table}" on the canvas.` };
+
+  const sameName = (field: EntityField, name: string) => field.name.toLowerCase() === name.toLowerCase();
+  const missing = [...input.updateColumns.map((c) => c.column), ...input.removeColumns].filter(
+    (name) => !table.props.fields.some((field) => sameName(field, name))
+  );
+  if (missing.length) return { ok: false, error: `No column(s) ${missing.join(", ")} in ${table.props.name}.` };
+
+  // Fields keep their ids, so relationship arrows follow their columns (see snapArrowToRow).
+  let fields = table.props.fields
+    .filter((field) => !input.removeColumns.some((name) => sameName(field, name)))
+    .map((field) => {
+      const change = input.updateColumns.find((c) => sameName(field, c.column));
+      if (!change) return field;
+      const props = { name: change.name, type: change.type, pk: change.pk, fk: change.fk };
+      return { ...field, ...Object.fromEntries(Object.entries(props).filter(([, v]) => v !== undefined)) };
+    });
+  fields = [
+    ...fields,
+    ...input.addColumns.map((c) => ({ id: newFieldId(), name: c.name, type: c.type, pk: !!c.pk, fk: !!c.fk })),
+  ];
+
+  editor.updateShape<EntityTableShape>({
+    id: table.id,
+    type: ENTITY_TABLE_TYPE,
+    props: { name: input.rename ?? table.props.name, fields, h: heightFor(fields) },
+  });
+  return { ok: true, summary: `Updated table ${input.rename ?? table.props.name}.` };
+}
+
+function editShapes(editor: Editor, input: z.infer<typeof editShapesInput>): ToolResult {
+  const unknown: string[] = [];
+  let relabeled = 0;
+  for (const { shapeId, text } of input.relabel) {
+    const shape = editor.getShape(shapeId as TLShapeId);
+    if (!shape || !("richText" in shape.props)) {
+      unknown.push(shapeId);
+      continue;
+    }
+    // The shape's type is only known at runtime, hence tldraw's loose partial type.
+    editor.updateShape({ id: shape.id, type: shape.type, props: { richText: toRichText(text) } } as TLShapePartial);
+    relabeled++;
+  }
+
+  const toDelete = input.delete.filter((id) => {
+    const exists = !!editor.getShape(id as TLShapeId);
+    if (!exists) unknown.push(id);
+    return exists;
+  }) as TLShapeId[];
+  editor.deleteShapes(toDelete);
+
+  return {
+    ok: true,
+    summary:
+      `Relabeled ${relabeled} and deleted ${toDelete.length} shape(s).` +
+      (unknown.length ? ` Unknown or unlabeled shape ids skipped: ${unknown.join(", ")}.` : ""),
+  };
+}
+
 function clearCanvas(editor: Editor): ToolResult {
   const ids = [...editor.getCurrentPageShapeIds()];
   editor.deleteShapes(ids);
@@ -281,8 +371,50 @@ function isBlank(editor: DocEditor) {
   );
 }
 
+// Models sometimes send escaped newlines ("\\n") instead of real ones; markdown needs real ones.
+function normalizeMarkdown(markdown: string) {
+  return markdown.includes("\n") ? markdown : markdown.replace(/\\n/g, "\n");
+}
+
+function parseMarkdown(editor: DocEditor, markdown: string) {
+  return editor.tryParseMarkdownToBlocks(normalizeMarkdown(markdown));
+}
+
+function editDoc(editor: DocEditor, input: z.infer<typeof editDocInput>): ToolResult {
+  let applied = 0;
+  const problems: string[] = [];
+
+  for (const op of input.operations) {
+    if (!editor.getBlock(op.blockId)) {
+      problems.push(`unknown block ${op.blockId}`);
+      continue;
+    }
+    if (op.action === "delete") {
+      // A doc can't be empty, so deleting its only block leaves an empty paragraph.
+      if (editor.document.length === 1) editor.replaceBlocks([op.blockId], [{ type: "paragraph" }]);
+      else editor.removeBlocks([op.blockId]);
+      applied++;
+      continue;
+    }
+    const blocks = op.markdown ? parseMarkdown(editor, op.markdown) : [];
+    if (blocks.length === 0) {
+      problems.push(`${op.action} on ${op.blockId} had no markdown`);
+      continue;
+    }
+    if (op.action === "replace") editor.replaceBlocks([op.blockId], blocks);
+    else editor.insertBlocks(blocks, op.blockId, "after");
+    applied++;
+  }
+
+  if (applied === 0) return { ok: false, error: `Nothing changed: ${problems.join("; ")}.` };
+  return {
+    ok: true,
+    summary: `Applied ${applied} doc edit(s).` + (problems.length ? ` Skipped: ${problems.join("; ")}.` : ""),
+  };
+}
+
 function writeDoc(editor: DocEditor, input: z.infer<typeof writeDocInput>): ToolResult {
-  const blocks = editor.tryParseMarkdownToBlocks(input.markdown);
+  const blocks = parseMarkdown(editor, input.markdown);
   if (blocks.length === 0) return { ok: false, error: "The markdown was empty." };
 
   if (input.mode === "replace" || isBlank(editor)) {
@@ -322,9 +454,25 @@ export function runAgentTool(toolName: string, rawInput: unknown, { canvasEditor
         canvasEditor.markHistoryStoppingPoint("agent: clear canvas");
         return clearCanvas(canvasEditor);
       }
+      case "update_table": {
+        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        const input = updateTableInput.parse(rawInput);
+        canvasEditor.markHistoryStoppingPoint("agent: update table");
+        return updateTable(canvasEditor, input);
+      }
+      case "edit_shapes": {
+        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        const input = editShapesInput.parse(rawInput);
+        canvasEditor.markHistoryStoppingPoint("agent: edit shapes");
+        return editShapes(canvasEditor, input);
+      }
       case "write_doc": {
         if (!docEditor) return { ok: false, error: NOT_OPEN.doc };
         return writeDoc(docEditor, writeDocInput.parse(rawInput));
+      }
+      case "edit_doc": {
+        if (!docEditor) return { ok: false, error: NOT_OPEN.doc };
+        return editDoc(docEditor, editDocInput.parse(rawInput));
       }
       default:
         return { ok: false, error: `Unknown tool ${toolName}` };

@@ -34,7 +34,10 @@ const SUGGESTIONS = [
 const TOOL_LABELS: Record<string, { running: string; done: string; icon: LucideIcon }> = {
   create_tables: { running: "Drawing tables", done: "Drew tables", icon: Table2 },
   create_diagram: { running: "Drawing diagram", done: "Drew diagram", icon: GitFork },
+  update_table: { running: "Updating table", done: "Updated table", icon: Table2 },
+  edit_shapes: { running: "Editing canvas", done: "Edited canvas", icon: GitFork },
   write_doc: { running: "Writing the doc", done: "Updated the doc", icon: FileText },
+  edit_doc: { running: "Editing the doc", done: "Edited the doc", icon: FileText },
   clear_canvas: { running: "Clearing canvas", done: "Cleared the canvas", icon: Eraser },
 };
 
