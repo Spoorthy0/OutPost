@@ -6,6 +6,7 @@ import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } fro
 import type { Editor } from "tldraw";
 import type { DocEditor } from "@/components/WorkspaceEditorsContext";
 import { buildAgentContext, runAgentTool } from "@/lib/agent-executors";
+import { refreshPromptUsage } from "@/components/PlanButton";
 
 type Editors = { canvasEditor: Editor | null; docEditor: DocEditor | null };
 
@@ -35,6 +36,9 @@ export function useWorkspaceAgentChat(workspaceId: string, editors: Editors) {
     id: `workspace-${workspaceId}`,
     transport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    // Keep the header's prompt count current: a prompt was used, or refunded after a failure.
+    onFinish: () => refreshPromptUsage(),
+    onError: () => refreshPromptUsage(),
     onToolCall: ({ toolCall }) => {
       if (toolCall.dynamic) return;
       const result = runAgentTool(toolCall.toolName, toolCall.input, editorsRef.current);

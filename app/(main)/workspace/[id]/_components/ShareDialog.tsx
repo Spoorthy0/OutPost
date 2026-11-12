@@ -28,13 +28,44 @@ const noopSubscribe = () => () => {};
 const getOrigin = () => window.location.origin;
 const getServerOrigin = () => "";
 
+// Some browsers start the download after click() returns, so the URL is revoked a little later.
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+// Workspace names can hold characters that aren't allowed in file names on Windows or macOS.
+function fileName(workspaceName: string, part: string) {
+  const safe = workspaceName.replace(/[\\/:*?"<>|]+/g, "-").trim() || "workspace";
+  return `${safe} - ${part}.pdf`;
+}
+
+// Browsers can't draw canvases much past ~16k px a side, and PDF pages max out at 14,400 units.
+const MAX_IMAGE_PX = 8000;
+const MAX_PDF_UNITS = 14_400;
+
+// Clipboard API needs a secure context (https or localhost); fall back to the old copy command.
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    const copied = document.execCommand("copy");
+    field.remove();
+    return copied;
+  }
 }
 
 export function ShareDialog({
@@ -76,24 +107,36 @@ export function ShareDialog({
   };
 
   const copyLink = async () => {
-    await navigator.clipboard.writeText(shareUrl);
-    toast.success("Link copied");
+    if (await copyText(shareUrl)) toast.success("Link copied");
+    else toast.error("Couldn't copy. Select the link and copy it instead.");
   };
 
-  // BlockNote's own exporter builds a real text PDF from the live doc. Both libraries are
-  // loaded only on click, since they're too big to ship with the page.
+  // BlockNote's own exporter builds a real, tagged text PDF from the live doc (Typst compiled
+  // to WebAssembly, all in the browser). If that fails, it falls back to the older react-pdf
+  // exporter. Everything is loaded only on click, since it's too big to ship with the page.
   const exportDoc = async () => {
     if (!docEditor) return;
     setExporting("doc");
     try {
-      const [{ PDFExporter, pdfDefaultSchemaMappings }, { pdf }] = await Promise.all([
-        import("@blocknote/xl-pdf-exporter/react-pdf"),
-        import("@react-pdf/renderer"),
-      ]);
-      const exporter = new PDFExporter(docEditor.schema, pdfDefaultSchemaMappings);
-      const pdfDocument = await exporter.toReactPDFDocument(docEditor.document);
-      downloadBlob(await pdf(pdfDocument).toBlob(), `${workspaceName} - doc.pdf`);
-    } catch {
+      let blob: Blob;
+      try {
+        const { PDFExporter, typstDefaultSchemaMappings } = await import("@blocknote/xl-pdf-exporter");
+        const exporter = new PDFExporter(docEditor.schema, typstDefaultSchemaMappings);
+        const result = await exporter.toPDF(docEditor.document, { title: workspaceName, lang: "en" });
+        if (result.error) throw new Error(result.compileErrors.map((e) => e.message).join("; "));
+        blob = result.blob;
+      } catch (error) {
+        console.warn("[export doc] Typst exporter failed, using react-pdf", error);
+        const [{ PDFExporter, pdfDefaultSchemaMappings }, { pdf }] = await Promise.all([
+          import("@blocknote/xl-pdf-exporter/react-pdf"),
+          import("@react-pdf/renderer"),
+        ]);
+        const exporter = new PDFExporter(docEditor.schema, pdfDefaultSchemaMappings);
+        blob = await pdf(await exporter.toReactPDFDocument(docEditor.document)).toBlob();
+      }
+      downloadBlob(blob, fileName(workspaceName, "doc"));
+    } catch (error) {
+      console.error("[export doc]", error);
       toast.error("Couldn't export the doc");
     } finally {
       setExporting(null);
@@ -111,15 +154,20 @@ export function ShareDialog({
 
     setExporting("canvas");
     try {
+      // Render at 2x for a crisp PDF, less for very large canvases the browser couldn't draw.
+      const bounds = canvasEditor.getCurrentPageBounds();
+      const largestSide = bounds ? Math.max(bounds.w, bounds.h) + 64 : 0;
+      const scale = largestSide ? Math.min(2, MAX_IMAGE_PX / largestSide) : 2;
       const { url, width, height } = await canvasEditor.toImageDataUrl(shapeIds, {
         format: "png",
         background: true,
         padding: 32,
-        scale: 2,
+        scale,
       });
       const { jsPDF } = await import("jspdf");
-      // Page size is half the image's pixels, so the 2x render stays crisp when zoomed.
-      const [pageWidth, pageHeight] = [width / 2, height / 2];
+      // The page is the canvas's own size (image pixels / scale), shrunk only past PDF's limit.
+      const fit = Math.min(1, MAX_PDF_UNITS / Math.max(width / scale, height / scale));
+      const [pageWidth, pageHeight] = [(width / scale) * fit, (height / scale) * fit];
       const pdf = new jsPDF({
         orientation: pageWidth > pageHeight ? "landscape" : "portrait",
         unit: "px",
@@ -127,8 +175,9 @@ export function ShareDialog({
         hotfixes: ["px_scaling"],
       });
       pdf.addImage(url, "PNG", 0, 0, pageWidth, pageHeight);
-      pdf.save(`${workspaceName} - canvas.pdf`);
-    } catch {
+      pdf.save(fileName(workspaceName, "canvas"));
+    } catch (error) {
+      console.error("[export canvas]", error);
       toast.error("Couldn't export the canvas");
     } finally {
       setExporting(null);
@@ -219,7 +268,8 @@ export function ShareDialog({
           </div>
           {canExportPdf && (!docEditor || !canvasEditor) && (
             <p className="text-xs text-muted-foreground">
-              Switch to the Both view to export {!docEditor ? "the doc" : "the canvas"}.
+              Switch to the Both view to export{" "}
+              {!docEditor && !canvasEditor ? "either" : !docEditor ? "the doc" : "the canvas"}.
             </p>
           )}
         </div>

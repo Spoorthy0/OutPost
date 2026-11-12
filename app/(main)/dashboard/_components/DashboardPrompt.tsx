@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp } from "lucide-react";
 import { createWorkspace } from "@/actions/workspace";
+import { getActivePromptUsage } from "@/actions/usage";
 import { useFetch } from "@/hooks/use-fetch";
 import { Button } from "@/components/ui/button";
 import MicButton from "@/components/MicButton";
@@ -44,6 +45,10 @@ export function DashboardPrompt() {
   const handleSubmit = async () => {
     const trimmed = prompt.trim();
     if (!trimmed || busy) return;
+    // The new workspace belongs to the active account, so its prompts are the ones that count.
+    // Out of prompts: offer the upgrade instead of opening a workspace whose agent can't answer.
+    const usage = await getActivePromptUsage().catch(() => null);
+    if (usage && usage.used >= usage.limit) return openUpgrade(UPGRADE_REASONS.prompts);
     const result = await createWorkspaceFn(nameFromPrompt(trimmed), trimmed);
     if (!result) return;
     if ("limit" in result) return openUpgrade(UPGRADE_REASONS[result.limit]);
