@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Show, SignInButton, SignUpButton, UserButton, OrganizationSwitcher, useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { PlanDetailsButton } from "@clerk/nextjs/experimental";
 import { PlanButton } from "../components/PlanButton";
 
 // Shared across every route (root layout). The landing page gets its section links and a way into

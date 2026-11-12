@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { hero } from "@/lib/landing-content";
+import { LazyVideo } from "@/app/_component/LazyVideo";
 
 export function Hero() {
   const { eyebrow, headline, subtitle, primaryCta, secondaryCta, video } = hero;
@@ -38,19 +39,13 @@ export function Hero() {
       <div className="scroll-tilt mt-20 w-full max-w-5xl md:mt-28">
         <div className="survey-frame">
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-card shadow-2xl shadow-primary/10">
-            <video
+            <LazyVideo
               className="aspect-video w-full object-cover"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
+              webm={video.webm}
+              mp4={video.mp4}
               poster={video.poster}
-              aria-label={video.label}
-            >
-              <source src={video.webm} type="video/webm" />
-              <source src={video.mp4} type="video/mp4" />
-            </video>
+              label={video.label}
+            />
           </div>
         </div>
       </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgentChatPanel } from "./AgentChatPanel";
@@ -17,18 +17,24 @@ export function AgentToggleButton({ workspaceId, initialPrompt }: { workspaceId:
   const [isOpen, setIsOpen] = useState(!!initialPrompt);
   const { canvasEditor, docEditor } = useWorkspaceEditors();
   const chat = useWorkspaceAgentChat(workspaceId, { canvasEditor, docEditor });
-  const router = useRouter();
-  const pathname = usePathname();
   const promptSent = useRef(false);
+  // document.body only exists on the client.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // A prompt from the dashboard is sent once both editors are ready, so the agent sees both
-  // surfaces. It's then dropped from the URL so a refresh doesn't send it again.
+  // surfaces (the workspace opens in the Both view for this). It's then dropped from the URL so a
+  // refresh doesn't send it again: through the history API, which updates the URL without
+  // re-rendering the page on the server the way router.replace would.
   useEffect(() => {
     if (!initialPrompt || promptSent.current || !canvasEditor || !docEditor) return;
     promptSent.current = true;
     chat.sendMessage({ text: initialPrompt });
-    router.replace(pathname, { scroll: false });
-  }, [initialPrompt, canvasEditor, docEditor, chat, router, pathname]);
+    window.history.replaceState(window.history.state, "", window.location.pathname);
+  }, [initialPrompt, canvasEditor, docEditor, chat]);
 
   return (
     <>
@@ -45,7 +51,9 @@ export function AgentToggleButton({ workspaceId, initialPrompt }: { workspaceId:
           </>
         )}
       </Button>
-      {isOpen && <AgentChatPanel chat={chat} isReady={!!canvasEditor || !!docEditor} />}
+      {/* Portaled out of the header: its backdrop-filter would otherwise become the containing
+          block for the panel's `position: fixed`, squashing it to the header's height. */}
+      {isOpen && mounted && createPortal(<AgentChatPanel chat={chat} isReady={!!canvasEditor || !!docEditor} />, document.body)}
     </>
   );
 }

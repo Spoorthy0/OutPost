@@ -8,12 +8,13 @@ import type { PartialBlock } from "@blocknote/core";
 import { checkUser } from "@/actions/check-user";
 import { prisma } from "@/lib/prisma";
 import { canAccessWorkspace } from "@/lib/workspace-access";
-import { getEntitlements, workspaceOwnerId, workspaceOwnerSelect } from "@/lib/billing";
+import { getEntitlements, getPromptUsage, workspaceOwnerId, workspaceOwnerSelect } from "@/lib/billing";
 import { WorkspaceEditorsProvider } from "@/components/WorkspaceEditorsContext";
 import { WorkspaceSurface } from "./_components/WorkspaceSurface";
 import { EditableWorkspaceName } from "./_components/EditableWorkspaceName";
 import { ShareDialog } from "./_components/ShareDialog";
 import { AgentToggleButton } from "./_components/AgentToggleButton";
+import { PlanButton } from "@/components/PlanButton";
 
 // With cacheComponents on, reading the request (params, the Clerk session) happens inside
 // <Suspense>, so the shell shows instantly and the workspace streams in.
@@ -28,36 +29,43 @@ export default function WorkspacePage({ params, searchParams }: PageProps<"/work
 async function Workspace({ params, searchParams }: PageProps<"/workspace/[id]">) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
 
-  const user = await checkUser();
+  // Independent lookups run together; the workspace's content is only rendered once access is confirmed.
+  const [user, allowed, workspace] = await Promise.all([
+    checkUser(),
+    canAccessWorkspace(id),
+    prisma.workspace.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        shareToken: true,
+        // The Yjs state is the doc's source of truth; the JSON copy is only needed for docs saved
+        // before collaboration existed, so it's sent only when there's no Yjs state yet.
+        doc: { select: { content: true, yjsState: true } },
+        canvas: { select: { content: true } },
+        ...workspaceOwnerSelect,
+      },
+    }),
+  ]);
   if (!user) redirect("/sign-in");
-  if (!(await canAccessWorkspace(id))) notFound();
+  if (!allowed || !workspace) notFound();
 
-  const workspace = await prisma.workspace.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      shareToken: true,
-      doc: { select: { content: true, yjsState: true } },
-      canvas: { select: { content: true } },
-      ...workspaceOwnerSelect,
-    },
-  });
-  if (!workspace) notFound();
-
-  const { publicSharing, pdfExport } = await getEntitlements(workspaceOwnerId(workspace));
+  const ownerId = workspaceOwnerId(workspace);
+  const entitlements = await getEntitlements(ownerId);
+  const usage = await getPromptUsage(ownerId, entitlements);
+  const { publicSharing, pdfExport } = entitlements;
   const initialPrompt = typeof query.prompt === "string" && query.prompt.trim() ? query.prompt : undefined;
+  const yjsState = workspace.doc?.yjsState;
 
   return (
     // Keyed by id so moving between workspaces starts fresh editors and a fresh agent chat.
     <WorkspaceEditorsProvider key={workspace.id}>
       <WorkspaceSurface
         workspaceId={workspace.id}
-        initialDoc={(workspace.doc?.content as PartialBlock[] | null) ?? null}
-        initialDocState={
-          workspace.doc?.yjsState ? Buffer.from(workspace.doc.yjsState).toString("base64") : null
-        }
+        initialDoc={yjsState ? null : ((workspace.doc?.content as PartialBlock[] | null) ?? null)}
+        initialDocState={yjsState ? Buffer.from(yjsState).toString("base64") : null}
         initialCanvas={(workspace.canvas?.content as TLEditorSnapshot | null) ?? null}
+        startInBothView={!!initialPrompt}
         left={
           <>
             <Link
@@ -74,6 +82,7 @@ async function Workspace({ params, searchParams }: PageProps<"/workspace/[id]">)
         }
         right={
           <>
+            <PlanButton workspaceId={workspace.id} initialUsage={usage} upgradeOnlyWhenOut />
             <ShareDialog
               workspaceId={workspace.id}
               workspaceName={workspace.name}

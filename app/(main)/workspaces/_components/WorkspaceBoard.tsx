@@ -65,9 +65,14 @@ export function WorkspaceBoard({ workspaces }: { workspaces: BoardWorkspace[] })
   const handleDelete = async (e: React.MouseEvent) => {
     // Keep the dialog open until the delete finishes (AlertDialogAction closes it by default).
     e.preventDefault();
-    if (!selected) return;
-    await deleteWorkspaceFn(selected.id);
+    if (!selected || isDeleting) return;
+    const deleted = await deleteWorkspaceFn(selected.id);
+    // On failure useFetch has shown the error; keep the dialog open so the user can retry.
+    if (!deleted) return;
+    const deletedId = selected.id;
+    setItems((current) => current.filter((w) => w.id !== deletedId));
     setOpenDialog(null);
+    toast.success("Workspace deleted");
   };
 
   const handleDragEnd = async ({ draggableId, source, destination }: DropResult) => {

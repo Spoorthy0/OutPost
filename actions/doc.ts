@@ -14,6 +14,7 @@ export async function saveDocContent(
 ) {
   if (!(await canAccessWorkspace(workspaceId))) throw new Error("Workspace not found");
 
+  if (typeof yjsState !== "string" || !yjsState) throw new Error("Invalid document state");
   const incoming = Buffer.from(yjsState, "base64");
 
   // Merge into the stored state instead of overwriting it, with the row locked, so two
@@ -23,9 +24,8 @@ export async function saveDocContent(
       SELECT "yjsState" FROM "Doc" WHERE "workspaceId" = ${workspaceId} FOR UPDATE`;
     const merged = row?.yjsState ? Y.mergeUpdates([row.yjsState, incoming]) : incoming;
 
-    await tx.doc.update({
-      where: { workspaceId },
-      data: { yjsState: Uint8Array.from(merged), content },
-    });
+    // Upsert: a workspace whose Doc row is missing (e.g. created by hand) still saves.
+    const data = { yjsState: Uint8Array.from(merged), content };
+    await tx.doc.upsert({ where: { workspaceId }, update: data, create: { workspaceId, ...data } });
   });
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { SubscriptionDetailsButton, useSubscription } from "@clerk/nextjs/experimental";
+import { SubscriptionDetailsButton } from "@clerk/nextjs/experimental";
 import { getActivePromptUsage } from "@/actions/usage";
+import { refreshEntitlements } from "@/actions/billing";
 import { useUpgradeDialog } from "@/components/UpgradeDialog";
 
 type Usage = Awaited<ReturnType<typeof getActivePromptUsage>>;
@@ -19,38 +20,55 @@ export function refreshPromptUsage() {
 // this month's agent prompts. Free plans get an Upgrade segment; paid plans open their subscription
 // details for members allowed to manage billing. `upgradeOnlyWhenOut` hides the Upgrade segment
 // until the prompts run out, for tighter spaces like the workspace header.
-export function PlanButton({ upgradeOnlyWhenOut = false }: { upgradeOnlyWhenOut?: boolean }) {
-  const { orgId, has } = useAuth();
+// Pass `workspaceId` inside a workspace, so the pill shows that workspace owner's plan and usage.
+export function PlanButton({
+  upgradeOnlyWhenOut = false,
+  workspaceId,
+  initialUsage,
+}: {
+  upgradeOnlyWhenOut?: boolean;
+  workspaceId?: string;
+  // Rendered on the server with the page, which saves a round trip before the pill can show.
+  initialUsage?: Usage;
+}) {
+  const { orgId, userId, has } = useAuth();
   const payerType = orgId ? "organization" : "user";
-  const { data: subscription } = useSubscription({ for: payerType });
-  const [usage, setUsage] = useState<Usage>(null);
+  const [usage, setUsage] = useState<Usage>(initialUsage ?? null);
+  const skipInitialLoad = useRef(!!initialUsage);
   const openUpgrade = useUpgradeDialog();
 
   // Refetch when switching between the personal account and an org, and after agent responses.
   useEffect(() => {
     let cancelled = false;
-    const load = () => getActivePromptUsage().then((next) => !cancelled && setUsage(next));
-    load();
+    const load = () =>
+      getActivePromptUsage(workspaceId)
+        .then((next) => !cancelled && setUsage(next))
+        .catch(() => {});
+    if (skipInitialLoad.current) skipInitialLoad.current = false;
+    else load();
     window.addEventListener(USAGE_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
       window.removeEventListener(USAGE_CHANGED_EVENT, load);
     };
-  }, [orgId]);
+  }, [orgId, workspaceId]);
 
   if (!usage) return null;
 
-  const { used, limit, isPaid } = usage;
+  const { used, limit, isPaid, planName, ownerId } = usage;
   const isOut = used >= limit;
-  const planName =
-    subscription?.subscriptionItems.find((item) => item.status === "active" && !item.plan.isDefault)?.plan.name ??
-    "Free";
 
   const upgrade = () =>
     openUpgrade({
       title: isOut ? "You're out of agent prompts" : "Get more agent prompts",
       description: `You've used ${used} of ${limit} prompts this month. Upgrade for more.`,
     });
+
+  // Plan lookups are cached on the server; refresh them so the downgrade shows right away.
+  const handleSubscriptionCancel = async () => {
+    await refreshEntitlements().catch(() => {});
+    refreshPromptUsage();
+  };
 
   const usageButton = (
     <button
@@ -72,11 +90,20 @@ export function PlanButton({ upgradeOnlyWhenOut = false }: { upgradeOnlyWhenOut?
     </button>
   );
 
-  const canManage = isPaid && (!orgId || has?.({ permission: "org:sys_billing:manage" }));
+  // Subscription details open for the selected account, so only when it's the one being shown.
+  const showsActiveAccount = ownerId === (orgId ?? userId);
+  const canManage =
+    isPaid && showsActiveAccount && (!orgId || has?.({ permission: "org:sys_billing:manage" }));
 
   return (
     <div className="flex h-8 items-center overflow-hidden rounded-full border border-white/10 bg-white/3 text-xs">
-      {canManage ? <SubscriptionDetailsButton for={payerType}>{usageButton}</SubscriptionDetailsButton> : usageButton}
+      {canManage ? (
+        <SubscriptionDetailsButton for={payerType} onSubscriptionCancel={handleSubscriptionCancel}>
+          {usageButton}
+        </SubscriptionDetailsButton>
+      ) : (
+        usageButton
+      )}
       {!isPaid && (!upgradeOnlyWhenOut || isOut) && (
         <button
           type="button"

@@ -51,6 +51,7 @@ export function WorkspaceSurface({
   initialDoc,
   initialDocState,
   initialCanvas,
+  startInBothView = false,
   left,
   right,
 }: {
@@ -58,17 +59,24 @@ export function WorkspaceSurface({
   initialDoc: PartialBlock[] | null;
   initialDocState: string | null;
   initialCanvas: TLEditorSnapshot | null;
+  // A prompt from the dashboard waits for both editors so the agent can draw and write, so the
+  // workspace opens in Both regardless of the remembered view, until the user picks another one.
+  startInBothView?: boolean;
   left: ReactNode;
   right: ReactNode;
 }) {
-  const view = useSyncExternalStore(subscribeView, readView, () => "both" as View);
+  const storedView = useSyncExternalStore(subscribeView, readView, () => "both" as View);
+  const [forceBoth, setForceBoth] = useState(startInBothView);
+  const view = forceBoth ? "both" : storedView;
   // Latest Yjs state, copied into docSeed on a view switch, so a re-mounted doc editor starts
   // from the current text rather than what the page first loaded.
   const latestDocState = useRef(initialDocState);
   const [docSeed, setDocSeed] = useState(initialDocState);
 
   const setView = (next: View) => {
+    if (next === view) return;
     setDocSeed(latestDocState.current);
+    setForceBoth(false);
     writeView(next);
   };
 

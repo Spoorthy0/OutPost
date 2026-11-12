@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 import * as Y from "yjs";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -18,6 +19,14 @@ import { colorForUser } from "@/lib/utils";
 import { outpostDarkTheme } from "../lib/blocknote-theme";
 
 const SAVE_DEBOUNCE_MS = 1000;
+
+// One toast per failure streak rather than one per debounced save.
+let lastFailureToast = 0;
+function notifySaveFailure() {
+  if (Date.now() - lastFailureToast < 30_000) return;
+  lastFailureToast = Date.now();
+  toast.error("Couldn't save the doc. We'll retry on your next edit.");
+}
 
 type DocEditorProps = {
   workspaceId: string;
@@ -95,7 +104,11 @@ function CollaborativeEditor({
       const content = JSON.parse(JSON.stringify(editor.document)) as Prisma.InputJsonValue;
       const state = toBase64(Y.encodeStateAsUpdate(doc));
       onStateChangeRef.current?.(state);
-      saveDocContent(workspaceId, state, content);
+      saveDocContent(workspaceId, state, content).catch((error) => {
+        // Peers still have the edit over Realtime; the next save sends the full state again.
+        console.error("[doc save]", error);
+        notifySaveFailure();
+      });
     };
     const handleUpdate = (_update: Uint8Array, origin: unknown) => {
       if (origin === provider) return;

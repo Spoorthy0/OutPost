@@ -25,7 +25,14 @@ const bricolage = Bricolage_Grotesque({
   axes: ["opsz"],
 });
 
+// Absolute base for the social images below. On Vercel the production URL is set automatically;
+// elsewhere set NEXT_PUBLIC_APP_URL, or previews would point at localhost.
+const siteUrl =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined);
+
 export const metadata: Metadata = {
+  ...(siteUrl && { metadataBase: new URL(siteUrl) }),
   title: "Outpost: Agentic Workspace",
   description:
     "An AI agent that draws and writes alongside you and your team, live.",

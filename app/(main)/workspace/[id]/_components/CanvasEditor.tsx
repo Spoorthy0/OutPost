@@ -21,6 +21,7 @@ import {
 } from "tldraw";
 import { useSync, useSyncDemo } from "@tldraw/sync";
 import "tldraw/tldraw.css";
+import { toast } from "sonner";
 import { saveCanvasContent } from "@/actions/canvas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeUtil";
@@ -30,6 +31,14 @@ import { useWorkspaceEditors } from "@/components/WorkspaceEditorsContext";
 import { colorForUser } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 1000;
+
+// One toast per failure streak rather than one per debounced save.
+let lastFailureToast = 0;
+function notifySaveFailure() {
+  if (Date.now() - lastFailureToast < 30_000) return;
+  lastFailureToast = Date.now();
+  toast.error("Couldn't back up the canvas. Your changes are still live; we'll retry on the next edit.");
+}
 
 const shapeUtils = [EntityTableShapeUtil];
 
@@ -125,18 +134,24 @@ export function CanvasEditor({
       editor.loadSnapshot(initialSnapshot);
     }
 
-    editor.store.listen(
+    const save = () => {
+      saveTimeout.current = null;
+      // getSnapshot() carries non-plain internals (schema is a class instance, not JSON) that
+      // occasionally fail to cross the Server Action boundary as "opaque temporary reference"
+      // errors — round-tripping through JSON strips those and leaves genuinely plain data.
+      const plainSnapshot = JSON.parse(JSON.stringify(editor.getSnapshot())) as Prisma.InputJsonValue;
+      saveCanvasContent(workspaceId, plainSnapshot).catch((error) => {
+        // Live collaboration still has the change; only the backup copy (share links, reseeding
+        // empty rooms) missed it, and the next edit retries.
+        console.error("[canvas save]", error);
+        notifySaveFailure();
+      });
+    };
+
+    const stopListening = editor.store.listen(
       () => {
         if (saveTimeout.current) clearTimeout(saveTimeout.current);
-        saveTimeout.current = setTimeout(() => {
-          // getSnapshot() carries non-plain internals (schema is a class instance, not JSON) that
-          // occasionally fail to cross the Server Action boundary as "opaque temporary reference"
-          // errors — round-tripping through JSON strips those and leaves genuinely plain data.
-          const plainSnapshot = JSON.parse(
-            JSON.stringify(editor.getSnapshot())
-          ) as Prisma.InputJsonValue;
-          saveCanvasContent(workspaceId, plainSnapshot);
-        }, SAVE_DEBOUNCE_MS);
+        saveTimeout.current = setTimeout(save, SAVE_DEBOUNCE_MS);
       },
       { source: "user", scope: "document" }
     );
@@ -144,8 +159,14 @@ export function CanvasEditor({
     // Arrows bound to an ERD table snap to the nearest row and stay on that column (see snapArrowToRow.ts).
     const stopRowSnapping = registerArrowRowSnapping(editor);
 
-    // Clear it on unmount (e.g. switching to the Document view) so nothing keeps a disposed editor.
+    // On unmount (e.g. switching to the Doc view): save any pending edit now, while the editor is
+    // still alive, instead of dropping it, and clear it so nothing keeps a disposed editor.
     return () => {
+      stopListening();
+      if (saveTimeout.current) {
+        clearTimeout(saveTimeout.current);
+        save();
+      }
       stopRowSnapping();
       setCanvasEditor(null);
     };

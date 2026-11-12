@@ -63,6 +63,8 @@ function WorkspaceForm({ workspace, onDone }: { workspace?: EditableWorkspace; o
   const openUpgrade = useUpgradeDialog();
 
   const handleSubmit = async () => {
+    // Enter in the name field can fire while a save is running or with a blank name.
+    if (loading || !name.trim()) return;
     if (workspace) {
       const updated = await updateWorkspaceFn(workspace.id, name, description);
       if (updated) onDone();
@@ -85,7 +87,13 @@ function WorkspaceForm({ workspace, onDone }: { workspace?: EditableWorkspace; o
           placeholder="Q1 Marketing Launch"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          maxLength={120}
           autoFocus
         />
       </div>
@@ -98,6 +106,7 @@ function WorkspaceForm({ workspace, onDone }: { workspace?: EditableWorkspace; o
           placeholder="What's this workspace for?"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          maxLength={2000}
           rows={3}
         />
       </div>

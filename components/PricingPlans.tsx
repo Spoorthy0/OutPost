@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { useAuth, useOrganization } from "@clerk/nextjs";
 import { CheckoutButton, usePlans, useSubscription } from "@clerk/nextjs/experimental";
 import { Button } from "@/components/ui/button";
+import { refreshEntitlements } from "@/actions/billing";
+import { refreshPromptUsage } from "@/components/PlanButton";
 
 type PayerType = "user" | "organization";
 type Plan = NonNullable<ReturnType<typeof usePlans>["data"]>[number];
@@ -170,7 +173,16 @@ function PlanAction({
 }) {
   const { isSignedIn, orgId, has } = useAuth();
   const { organization } = useOrganization();
+  const router = useRouter();
   const isPaid = !plan.isDefault;
+
+  // The server caches plan lookups for a minute; drop that cache so the new limits apply now,
+  // then re-render the page and the header pill with them.
+  const handleSubscriptionComplete = async () => {
+    await refreshEntitlements().catch(() => {});
+    refreshPromptUsage();
+    router.refresh();
+  };
 
   if (!isSignedIn) {
     return (
@@ -206,7 +218,12 @@ function PlanAction({
         </p>
       )}
       {/* CheckoutButton runs this button's onClick first, then opens Clerk's checkout drawer. */}
-      <CheckoutButton planId={plan.id} planPeriod="month" for={payerType}>
+      <CheckoutButton
+        planId={plan.id}
+        planPeriod="month"
+        for={payerType}
+        onSubscriptionComplete={handleSubscriptionComplete}
+      >
         <Button size="lg" variant={isFeatured ? "default" : "outline"} className="w-full" onClick={onCheckoutStart}>
           Upgrade to {plan.name}
         </Button>
