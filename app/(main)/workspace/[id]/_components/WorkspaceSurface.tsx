@@ -92,12 +92,16 @@ export function WorkspaceSurface({
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      <header className="relative z-40 grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/8 bg-background/85 px-3 backdrop-blur-xl">
+      <header className="relative z-40 grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/8 bg-[linear-gradient(180deg,oklch(0.16_0.005_285/0.92),oklch(0.135_0.004_285/0.88))] px-3 backdrop-blur-xl">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-[linear-gradient(90deg,transparent,oklch(0.74_0.16_55/0.3)_50%,transparent)]"
+        />
         <div className="flex min-w-0 items-center gap-1.5">{left}</div>
 
         <nav
           aria-label="Workspace view"
-          className="flex items-center gap-0.5 rounded-lg border border-white/8 bg-white/3 p-0.5"
+          className="flex items-center gap-0.5 rounded-xl border border-white/8 bg-black/25 p-1 shadow-[inset_0_1px_2px_oklch(0_0_0/0.4)]"
         >
           {VIEWS.map(({ view: option, label, icon: Icon }) => {
             const active = option === view;
@@ -107,10 +111,10 @@ export function WorkspaceSurface({
                 type="button"
                 onClick={() => setView(option)}
                 aria-pressed={active}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition-all ${
                   active
-                    ? "bg-white/10 text-foreground shadow-sm ring-1 ring-white/10"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-[linear-gradient(180deg,oklch(1_0_0/0.12),oklch(1_0_0/0.06))] text-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.1),0_1px_3px_oklch(0_0_0/0.5)] ring-1 ring-white/10"
+                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                 }`}
               >
                 <Icon className={`size-3.5 ${active ? "text-primary" : ""}`} />

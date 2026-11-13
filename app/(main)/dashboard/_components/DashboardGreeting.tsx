@@ -40,7 +40,7 @@ export function DashboardGreeting() {
   const { isLoaded, user } = useUser();
 
   return (
-    <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
+    <h2 className="text-heading-fade text-4xl leading-tight font-semibold tracking-[-0.03em] text-balance md:text-5xl">
       {/* The non-breaking space holds the line's height so the page doesn't jump when the title appears. */}
       {isLoaded ? <RandomGreeting firstName={user?.firstName} /> : " "}
     </h2>

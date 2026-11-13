@@ -94,6 +94,18 @@
 
   body {
     @apply bg-background text-foreground relative;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    background: oklch(0.74 0.16 55 / 30%);
+    color: var(--foreground);
+  }
+
+  /* Slim, quiet scrollbars that match the dark surfaces. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 12%) transparent;
   }
 
   html {
@@ -138,6 +150,133 @@
     mask-repeat: no-repeat;
     mask-composite: intersect;
     opacity: 0.55;
+  }
+}
+
+/* Brand gradient text: a warm amber-to-ember sweep for highlighted words in headlines. */
+@utility text-brand {
+  background: linear-gradient(100deg, oklch(0.86 0.13 75) 0%, oklch(0.76 0.17 58) 45%, oklch(0.66 0.19 38) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Soft gradient for large headings: bright at the top, settling into muted grey. */
+@utility text-heading-fade {
+  background: linear-gradient(180deg, oklch(0.99 0 0) 30%, oklch(0.76 0.01 285) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A 1px gradient border drawn with a mask, so it works on rounded, translucent cards.
+   Brightest at the top edge, like light falling on the card. Needs a rounded parent. */
+@utility edge-glow {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(180deg, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0.04) 40%, oklch(1 0 0 / 0.02));
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+}
+
+/* The same idea in brand colors, for the featured card or the focused prompt box. */
+@utility edge-glow-brand {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(160deg, oklch(0.8 0.15 62 / 0.75), oklch(0.74 0.16 55 / 0.12) 45%, oklch(0.66 0.19 38 / 0.45));
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+}
+
+/* Faint dot grid, like graph paper under a map. */
+@utility bg-dots {
+  background-image: radial-gradient(oklch(1 0 0 / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Ambient amber glow, placed absolutely behind hero content. */
+@utility glow-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, oklch(0.74 0.16 55 / 0.35), oklch(0.66 0.19 38 / 0.12) 55%, transparent);
+  filter: blur(40px);
+}
+
+/* Hairline divider that fades out at both ends. */
+@utility hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.12) 20%, oklch(1 0 0 / 0.12) 80%, transparent);
+}
+
+/* Entrance: rise and fade in. Stagger with an inline animation-delay. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@utility rise-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: rise-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+/* A light sweep across a surface, used on the primary call to action. */
+@keyframes sheen {
+  from {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+
+  to {
+    transform: translateX(260%) skewX(-20deg);
+  }
+}
+
+@utility sheen {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.35), transparent);
+    transform: translateX(-120%) skewX(-20deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    &:hover::after {
+      animation: sheen 0.9s ease;
+    }
   }
 }
 

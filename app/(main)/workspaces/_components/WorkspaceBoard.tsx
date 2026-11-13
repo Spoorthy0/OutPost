@@ -100,18 +100,24 @@ export function WorkspaceBoard({ workspaces }: { workspaces: BoardWorkspace[] })
         {WORKSPACE_STATUSES.map((column) => {
           const columnWorkspaces = columnItems(items, column.status);
           return (
-            <div key={column.status} className="flex flex-col rounded-lg bg-white/3">
-              <div className="flex items-center gap-2 px-3 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            <div
+              key={column.status}
+              className="flex flex-col rounded-2xl border border-white/6 bg-[linear-gradient(180deg,oklch(1_0_0/0.035),oklch(1_0_0/0.012))] shadow-[inset_0_1px_0_oklch(1_0_0/0.04)]"
+            >
+              <div className="flex items-center gap-2 px-4 pt-4 pb-2 text-xs font-semibold tracking-wide text-foreground/80 uppercase">
+                <span className={`size-2 rounded-full ${column.dot}`} />
                 {column.title}
-                <span className="font-normal">{columnWorkspaces.length}</span>
+                <span className="ml-auto rounded-full bg-white/6 px-2 py-0.5 font-mono text-[10px] font-normal text-muted-foreground tabular-nums">
+                  {columnWorkspaces.length}
+                </span>
               </div>
               <Droppable droppableId={column.status}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`flex min-h-40 flex-1 flex-col gap-1.5 rounded-b-lg p-2 transition-colors ${
-                      snapshot.isDraggingOver ? "bg-primary/5" : ""
+                    className={`m-1.5 mt-0 flex min-h-40 flex-1 flex-col gap-2 rounded-xl p-1.5 transition-colors ${
+                      snapshot.isDraggingOver ? "bg-primary/6 ring-1 ring-primary/25 ring-inset" : ""
                     }`}
                   >
                     {columnWorkspaces.map((workspace, index) => (
@@ -128,7 +134,7 @@ export function WorkspaceBoard({ workspaces }: { workspaces: BoardWorkspace[] })
                                       variant="ghost"
                                       size="icon"
                                       aria-label="Workspace options"
-                                      className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                      className="absolute top-2.5 right-2.5 z-10 size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                                     >
                                       <MoreHorizontal className="size-4" />
                                     </Button>

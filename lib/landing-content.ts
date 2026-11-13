@@ -1,14 +1,16 @@
-import { FileText, Shapes, SquareKanban, type LucideIcon } from "lucide-react";
+import { FileText, MessageSquareText, Shapes, Sparkles, SquareKanban, Users, type LucideIcon } from "lucide-react";
 
 // All landing-page copy lives here so wording changes never touch layout code.
 
 export const hero = {
   eyebrow: "Early access",
+  eyebrowNote: "Your AI teammate for docs and diagrams",
   headline: { before: "Map the unknown together, with ", highlight: "Outpost", after: "" },
   subtitle:
     "An AI agent that draws and writes alongside you and your team, live. Sketch ideas on the canvas, shape them in docs, and ship faster.",
   primaryCta: { label: "Start building free", href: "/sign-up" },
   secondaryCta: { label: "How it works", href: "#how-it-works" },
+  assurances: ["Free to start", "No credit card required", "Real-time collaboration"],
   video: {
     webm: "/videos/hero.webm",
     mp4: "/videos/hero.mp4",
@@ -85,16 +87,19 @@ export const howItWorks = {
   subtitle: "No templates to learn. Say what you need and build on it with your team.",
   steps: [
     {
+      icon: MessageSquareText,
       title: "Describe it",
       description:
         "Tell the agent what you need in plain language: a database schema, a system diagram, a product spec or a launch plan.",
     },
     {
+      icon: Sparkles,
       title: "Watch the agent draw",
       description:
         "It builds on the canvas shape by shape and drafts the doc alongside, live, so you can follow every step.",
     },
     {
+      icon: Users,
       title: "Keep iterating together",
       description:
         "Ask for changes, edit by hand and bring in teammates. The agent updates the work in place as it evolves.",

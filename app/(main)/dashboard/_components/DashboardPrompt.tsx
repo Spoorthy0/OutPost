@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Sparkles } from "lucide-react";
 import { createWorkspace } from "@/actions/workspace";
 import { getActivePromptUsage } from "@/actions/usage";
 import { useFetch } from "@/hooks/use-fetch";
@@ -56,11 +56,16 @@ export function DashboardPrompt() {
   };
 
   return (
-    <section className="topo-bg mx-auto mb-14 w-full max-w-4xl px-6 py-10 text-center">
+    <section className="topo-bg relative mx-auto mb-16 w-full max-w-4xl px-6 pt-12 pb-10 text-center">
+      <div aria-hidden className="glow-orb -z-10 top-0 left-1/2 h-72 w-[640px] -translate-x-1/2 opacity-60" />
+      <p className="mx-auto mb-5 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/6 px-3 py-1 text-[11px] font-medium text-primary/90">
+        <Sparkles className="size-3" />
+        Outpost Agent
+      </p>
       <DashboardGreeting />
-      <p className="mt-2 text-muted-foreground">Describe it, and the agent drafts the doc and the canvas for you.</p>
+      <p className="mt-3 text-pretty text-muted-foreground">Describe it, and the agent drafts the doc and the canvas for you.</p>
 
-      <div className="mx-auto mt-7 max-w-3xl rounded-3xl border border-white/12 bg-card/80 p-3 text-left shadow-2xl shadow-black/40 backdrop-blur transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
+      <div className="edge-glow mx-auto mt-8 max-w-3xl rounded-3xl bg-[linear-gradient(180deg,oklch(0.2_0.006_285/0.92),oklch(0.16_0.005_285/0.92))] p-3 text-left shadow-[0_30px_80px_-30px_oklch(0_0_0/0.9),0_0_0_1px_oklch(1_0_0/0.06)] backdrop-blur-xl transition-shadow duration-300 focus-within:shadow-[0_30px_80px_-30px_oklch(0_0_0/0.9),0_0_0_1px_oklch(0.74_0.16_55/0.5),0_0_0_5px_oklch(0.74_0.16_55/0.12),0_20px_60px_-20px_oklch(0.74_0.16_55/0.35)]">
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -73,7 +78,12 @@ export function DashboardPrompt() {
           className="field-sizing-content max-h-60 min-h-14 w-full resize-none bg-transparent px-2 pt-1 text-base leading-6 outline-none placeholder:text-muted-foreground/70"
         />
         <div className="mt-1 flex items-center justify-between gap-2 pl-2">
-          <span className="text-xs text-muted-foreground/70">Shift + Enter for a new line</span>
+          <span className="hidden items-center gap-1 text-xs text-muted-foreground/70 sm:flex">
+            <kbd className="rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px]">Shift</kbd>+
+            <kbd className="rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px]">Enter</kbd>
+            for a new line
+          </span>
+          <span className="sm:hidden" />
           <div className="flex items-center gap-1.5">
             <MicButton value={prompt} onChange={setPrompt} onListeningChange={setListening} disabled={busy} />
             <Button
@@ -81,7 +91,7 @@ export function DashboardPrompt() {
               onClick={handleSubmit}
               disabled={!prompt.trim() || busy}
               aria-label="Create workspace"
-              className="rounded-full shadow-lg shadow-primary/25"
+              className="size-9 rounded-full"
             >
               <ArrowUp className="size-4" />
             </Button>
@@ -89,15 +99,16 @@ export function DashboardPrompt() {
         </div>
       </div>
 
-      <div className="mx-auto mt-4 flex max-w-3xl flex-wrap justify-center gap-2">
+      <div className="mx-auto mt-5 flex max-w-3xl flex-wrap justify-center gap-2">
         {EXAMPLE_PROMPTS.map((example) => (
           <button
             key={example}
             type="button"
             onClick={() => setPrompt(example)}
             disabled={busy}
-            className="rounded-full border border-white/10 bg-white/3 px-3.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/3 px-3.5 py-1.5 text-xs text-muted-foreground backdrop-blur-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:bg-primary/6 hover:text-foreground"
           >
+            <Sparkles className="size-3 text-primary/60 transition-colors group-hover:text-primary" />
             {example}
           </button>
         ))}

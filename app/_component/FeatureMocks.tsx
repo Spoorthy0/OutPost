@@ -5,12 +5,19 @@ import type { FeatureMock } from "@/lib/landing-content";
 
 function MockFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div aria-hidden className="overflow-hidden rounded-xl border border-white/10 bg-card shadow-xl shadow-black/30">
-      <div className="flex items-center gap-2 border-b border-white/6 px-4 py-2.5">
-        <span className="size-2 rounded-full bg-white/15" />
-        <span className="size-2 rounded-full bg-white/15" />
-        <span className="size-2 rounded-full bg-white/15" />
+    <div
+      aria-hidden
+      className="edge-glow overflow-hidden rounded-2xl bg-[linear-gradient(180deg,oklch(0.19_0.006_285),oklch(0.155_0.005_285))] shadow-[0_30px_80px_-30px_oklch(0_0_0/0.9),0_0_0_1px_oklch(1_0_0/0.04)] transition-transform duration-500 hover:-translate-y-1"
+    >
+      <div className="flex items-center gap-2 border-b border-white/6 bg-white/2 px-4 py-3">
+        <span className="size-2.5 rounded-full bg-white/12" />
+        <span className="size-2.5 rounded-full bg-white/12" />
+        <span className="size-2.5 rounded-full bg-white/12" />
         <span className="ml-2 font-mono text-[11px] text-muted-foreground">{title}</span>
+        <span className="ml-auto flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary ring-1 ring-primary/25">
+          <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+          Live
+        </span>
       </div>
       <div className="p-5">{children}</div>
     </div>

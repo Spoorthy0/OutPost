@@ -18,7 +18,7 @@ const RECENT_COUNT = 4;
 // must happen inside <Suspense>. The prompt is static and shows instantly; the workspaces stream in.
 export default function DashboardPage() {
   return (
-    <div className="p-8">
+    <div className="px-6 pb-16 md:px-8">
       <DashboardPrompt />
 
       <section className="mx-auto max-w-6xl">
@@ -39,7 +39,7 @@ function WorkspacesSkeleton() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: RECENT_COUNT }, (_, index) => (
-          <div key={index} className="h-36 animate-pulse rounded-md bg-muted" />
+          <div key={index} className="h-40 animate-pulse rounded-xl bg-white/4 ring-1 ring-white/6" />
         ))}
       </div>
     </div>
@@ -62,10 +62,10 @@ async function DashboardWorkspaces() {
 
   return (
     <>
-      <div className="mb-4 flex items-end justify-between gap-4">
+      <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs text-muted-foreground">{orgName}</p>
-          <h2 className="text-lg font-semibold">Recent workspaces</h2>
+          <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground/80 uppercase">{orgName}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight">Recent workspaces</h2>
         </div>
         <div className="flex items-center gap-2">
           {workspaces.length > 0 && (
@@ -93,10 +93,13 @@ async function DashboardWorkspaces() {
       </div>
 
       {workspaces.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/10 py-10 text-center text-sm text-muted-foreground">
-          No workspaces yet. Describe what you want to plan above to start
-          one.
-        </p>
+        <div className="bg-dots flex flex-col items-center rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/25">
+            <Plus className="size-5" />
+          </span>
+          <p className="mt-4 font-medium">No workspaces yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Describe what you want to plan above to start one.</p>
+        </div>
       ) : (
         <RecentWorkspaces workspaces={recent} />
       )}

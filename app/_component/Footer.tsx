@@ -8,13 +8,14 @@ export async function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-white/6 bg-card/40 px-6 pt-16 pb-8">
+    <footer className="relative bg-[linear-gradient(180deg,transparent,oklch(0.15_0.005_285))] px-6 pt-20 pb-10">
+      <div aria-hidden className="hairline absolute inset-x-0 top-0" />
       <div className="mx-auto grid max-w-5xl gap-10 md:grid-cols-[2fr_1fr_1fr]">
         <div>
           <Link href="/" className="inline-flex">
             <Image src="/brand/logo-navbar-dark.png" alt="Outpost" width={314} height={160} className="h-9 w-auto" />
           </Link>
-          <p className="mt-4 max-w-xs text-sm text-pretty text-muted-foreground">{footer.tagline}</p>
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-pretty text-muted-foreground">{footer.tagline}</p>
         </div>
 
         {footer.columns.map((column) => (
@@ -23,7 +24,7 @@ export async function Footer() {
             <ul className="mt-4 space-y-3 text-sm">
               {column.links.map((link) => (
                 <li key={link.label}>
-                  <Link href={link.href} className="text-foreground/80 transition-colors hover:text-primary">
+                  <Link href={link.href} className="text-foreground/75 transition-colors hover:text-primary">
                     {link.label}
                   </Link>
                 </li>
@@ -33,7 +34,7 @@ export async function Footer() {
         ))}
       </div>
 
-      <div className="mx-auto mt-14 flex max-w-5xl flex-col items-center justify-between gap-3 border-t border-white/6 pt-6 text-xs text-muted-foreground sm:flex-row">
+      <div className="mx-auto mt-14 flex max-w-5xl flex-col items-center justify-between gap-3 border-t border-white/6 pt-7 text-xs text-muted-foreground sm:flex-row">
         <p>© {year} Outpost. All rights reserved.</p>
         <p className="inline-flex items-center gap-1.5">
           {footer.madeBy.before}
