@@ -41,9 +41,11 @@ export function useWorkspaceAgentChat(workspaceId: string, editors: Editors) {
     onError: () => refreshPromptUsage(),
     onToolCall: ({ toolCall }) => {
       if (toolCall.dynamic) return;
-      const result = runAgentTool(toolCall.toolName, toolCall.input, editorsRef.current);
-      // Not awaited, per the SDK: awaiting inside onToolCall can deadlock the chat.
-      void chat.addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: result });
+      // Drawing runs step by step, so the result comes later. Not awaited, per the SDK: awaiting
+      // inside onToolCall can deadlock the chat. The chat resubmits once every output is in.
+      void runAgentTool(toolCall.toolName, toolCall.input, editorsRef.current).then((output) =>
+        chat.addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output })
+      );
     },
   });
 

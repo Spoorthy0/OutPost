@@ -160,8 +160,11 @@ export function connectTableRows(
   const toTable = getTable(editor, to.tableId);
   if (!fromTable || !toTable) return false;
 
-  // Leave from the side facing the other table.
-  const fromIsLeft = fromTable.x + fromTable.props.w / 2 <= toTable.x + toTable.props.w / 2;
+  // Leave from the side facing the other table. Compared in page space: the tables may sit in
+  // different frames, where x is relative to each frame.
+  const fromCenter = editor.getShapePageBounds(fromTable)?.center.x ?? fromTable.x;
+  const toCenter = editor.getShapePageBounds(toTable)?.center.x ?? toTable.x;
+  const fromIsLeft = fromCenter <= toCenter;
   const ends = [
     { terminal: "start" as const, table: fromTable, rowIndex: from.rowIndex, side: fromIsLeft ? "right" : "left" },
     { terminal: "end" as const, table: toTable, rowIndex: to.rowIndex, side: fromIsLeft ? "left" : "right" },

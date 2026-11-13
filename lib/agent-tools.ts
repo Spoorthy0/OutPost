@@ -8,7 +8,21 @@ import { z } from "zod";
 
 export const DIAGRAM_COLORS = ["blue", "light-blue", "violet", "light-violet", "green", "light-green", "orange", "yellow", "red", "light-red", "grey", "black"] as const;
 
+// What a diagram is, shown in its frame's title on the canvas ("Flowchart · Checkout").
+export const DIAGRAM_KINDS = {
+  flowchart: "Flowchart",
+  user_flow: "User flow",
+  process: "Process diagram",
+  architecture: "Architecture diagram",
+  mind_map: "Mind map",
+  org_chart: "Org chart",
+  other: "Diagram",
+} as const;
+export type DiagramKind = keyof typeof DIAGRAM_KINDS;
+const diagramKinds = Object.keys(DIAGRAM_KINDS) as [DiagramKind, ...DiagramKind[]];
+
 export const createTablesInput = z.object({
+  title: z.string().optional().describe("short name for the schema, e.g. Blog or Food delivery"),
   tables: z
     .array(
       z.object({
@@ -41,12 +55,18 @@ export const createTablesInput = z.object({
 });
 
 export const createDiagramInput = z.object({
+  kind: z.enum(diagramKinds).optional().default("flowchart").describe("what this diagram is; shown in its title"),
+  title: z.string().optional().describe("short name, e.g. Checkout or User onboarding"),
   nodes: z
     .array(
       z.object({
         id: z.string().describe("short unique id used by edges"),
-        label: z.string(),
-        shape: z.enum(["rectangle", "ellipse", "diamond", "cloud", "hexagon"]).optional().default("rectangle"),
+        label: z.string().describe("short: two to five words"),
+        shape: z
+          .enum(["rectangle", "ellipse", "diamond", "cloud", "hexagon"])
+          .optional()
+          .default("rectangle")
+          .describe("ellipse for start/end, diamond for decisions, rectangle for steps"),
         color: z.enum(DIAGRAM_COLORS).optional(),
       })
     )
@@ -55,7 +75,10 @@ export const createDiagramInput = z.object({
     .array(z.object({ from: z.string(), to: z.string(), label: z.string().optional() }))
     .optional()
     .default([]),
-  direction: z.enum(["horizontal", "vertical"]).optional().default("horizontal"),
+  direction: z
+    .enum(["horizontal", "vertical"])
+    .optional()
+    .describe("defaults to vertical (top-down) for flowcharts and flows, horizontal for architecture"),
 });
 
 export const writeDocInput = z.object({
@@ -117,12 +140,12 @@ export const clearCanvasInput = z.object({});
 export const agentTools = {
   create_tables: tool({
     description:
-      "Draw database tables (ERD) on the canvas, with relationship arrows from a foreign key column to the column it references. New tables are placed beside existing content.",
+      "Draw a database schema (ERD) on the canvas, with relationship arrows from a foreign key column to the column it references. It appears step by step in a frame titled \"Database schema · <title>\", beside existing content.",
     inputSchema: createTablesInput,
   }),
   create_diagram: tool({
     description:
-      "Draw a flowchart, architecture or process diagram on the canvas: labeled nodes connected by arrows, laid out automatically.",
+      "Draw a flowchart, user flow, architecture or process diagram on the canvas: labeled nodes connected by arrows, laid out automatically and drawn step by step in a frame titled by its kind and title.",
     inputSchema: createDiagramInput,
   }),
   update_table: tool({

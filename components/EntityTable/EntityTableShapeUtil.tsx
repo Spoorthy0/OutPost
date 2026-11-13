@@ -79,6 +79,8 @@ export function createEntityTable(
     fields,
     w = DEFAULT_W,
     id = createShapeId(),
+    parentId,
+    opacity,
   }: {
     x: number;
     y: number;
@@ -87,6 +89,10 @@ export function createEntityTable(
     fields: Omit<EntityField, "id">[];
     w?: number;
     id?: TLShapeId;
+    // A frame to place it in (x and y are then relative to the frame), and a starting opacity
+    // for the agent's fade-in.
+    parentId?: TLShapeId;
+    opacity?: number;
   }
 ) {
   const withIds = fields.map((field) => ({ ...field, id: newFieldId() }));
@@ -95,6 +101,8 @@ export function createEntityTable(
     type: ENTITY_TABLE_TYPE,
     x,
     y,
+    ...(parentId && { parentId }),
+    ...(opacity !== undefined && { opacity }),
     props: {
       w,
       h: heightFor(withIds),

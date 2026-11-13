@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowUp,
   Check,
+  Database,
   Eraser,
   FileText,
   GitFork,
@@ -14,6 +15,7 @@ import {
   Square,
   Table2,
   Wand2,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { isToolUIPart, isDynamicToolUIPart } from "ai";
@@ -22,7 +24,8 @@ import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { MicButton } from "@/components/MicButton";
 import { useUpgradeDialog } from "@/components/UpgradeDialog";
-import { PROMPT_LIMIT_ERROR, UPGRADE_REASONS } from "@/lib/plan-limits";
+import { DIAGRAM_KINDS, type DiagramKind } from "@/lib/agent-tools";
+import { AGENT_BUSY_ERROR, PROMPT_LIMIT_ERROR, UPGRADE_REASONS } from "@/lib/plan-limits";
 import { submitOnEnter } from "@/lib/utils";
 
 const SUGGESTIONS = [
@@ -32,8 +35,8 @@ const SUGGESTIONS = [
 ];
 
 const TOOL_LABELS: Record<string, { running: string; done: string; icon: LucideIcon }> = {
-  create_tables: { running: "Drawing tables", done: "Drew tables", icon: Table2 },
-  create_diagram: { running: "Drawing diagram", done: "Drew diagram", icon: GitFork },
+  create_tables: { running: "Drawing database schema", done: "Drew database schema", icon: Database },
+  create_diagram: { running: "Drawing diagram", done: "Drew diagram", icon: Workflow },
   update_table: { running: "Updating table", done: "Updated table", icon: Table2 },
   edit_shapes: { running: "Editing canvas", done: "Edited canvas", icon: GitFork },
   write_doc: { running: "Writing the doc", done: "Updated the doc", icon: FileText },
@@ -42,6 +45,19 @@ const TOOL_LABELS: Record<string, { running: string; done: string; icon: LucideI
 };
 
 type ToolOutput = { ok: boolean; summary?: string; error?: string } | undefined;
+
+// The card names what is being drawn ("Drawing flowchart"), from the tool's input once it arrives.
+function drawingLabels(toolName: string, input: unknown) {
+  const { kind, title } = (input ?? {}) as { kind?: DiagramKind; title?: string };
+  const noun =
+    toolName === "create_diagram"
+      ? (DIAGRAM_KINDS[kind ?? "flowchart"] ?? "Diagram").toLowerCase()
+      : toolName === "create_tables"
+        ? "database schema"
+        : null;
+  if (!noun) return null;
+  return { running: `Drawing ${noun}`, done: `Drew ${noun}`, title: title?.trim() || undefined };
+}
 
 export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; isReady: boolean }) {
   const [input, setInput] = useState("");
@@ -150,7 +166,7 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
               messages.map((message) =>
                 message.role === "user" ? (
                   <div key={message.id} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap text-primary-foreground shadow-lg shadow-primary/10">
+                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[linear-gradient(180deg,oklch(0.8_0.15_62),oklch(0.71_0.17_50))] px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap text-primary-foreground shadow-[inset_0_1px_0_oklch(1_0_0/0.3),0_8px_20px_-8px_oklch(0.74_0.16_55/0.5)]">
                       {message.parts.map((part, i) => (part.type === "text" ? <span key={i}>{part.text}</span> : null))}
                     </div>
                   </div>
@@ -200,9 +216,13 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
                         const output = (part.state === "output-available" ? part.output : undefined) as ToolOutput;
                         const failed = part.state === "output-error" || output?.ok === false;
                         const done = part.state === "output-available" && !failed;
+                        const drawing = drawingLabels(toolName, part.input);
+                        const labels = drawing ?? meta;
                         const detail = failed
                           ? (output?.error ?? (part.state === "output-error" ? part.errorText : undefined))
-                          : output?.summary;
+                          : done
+                            ? output?.summary
+                            : drawing?.title && `${drawing.title}, step by step…`;
 
                         return (
                           <div
@@ -222,7 +242,7 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="flex items-center gap-1.5 text-xs font-medium">
-                                {done ? meta?.done ?? toolName : failed ? "Couldn't finish" : meta?.running ?? toolName}
+                                {done ? labels?.done ?? toolName : failed ? "Couldn't finish" : labels?.running ?? toolName}
                                 {done && <Check className="size-3 text-emerald-400" />}
                                 {failed && <AlertTriangle className="size-3 text-amber-400" />}
                                 {!done && !failed && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
@@ -264,6 +284,8 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
                       Upgrade
                     </button>
                   </span>
+                ) : error.message.includes(AGENT_BUSY_ERROR) ? (
+                  "The AI model is overloaded right now. Wait a moment and send that again; this one wasn't counted."
                 ) : (
                   "Something went wrong. Try sending that again."
                 )}
@@ -272,7 +294,7 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
           </div>
 
           <div className="relative shrink-0 p-3">
-            <div className="rounded-2xl border border-white/10 bg-background/60 p-2 transition focus-within:border-primary/45 focus-within:ring-4 focus-within:ring-primary/10">
+            <div className="rounded-2xl border border-white/10 bg-background/70 p-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.04),0_10px_30px_-12px_oklch(0_0_0/0.8)] transition focus-within:border-primary/45 focus-within:ring-4 focus-within:ring-primary/10">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -301,7 +323,7 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
                       size="icon"
                       onClick={() => send(input)}
                       disabled={!input.trim() || !isReady}
-                      className="size-8 rounded-full shadow-lg shadow-primary/25"
+                      className="size-8 rounded-full"
                       aria-label="Send"
                     >
                       <ArrowUp className="size-4" />

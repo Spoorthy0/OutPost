@@ -10,13 +10,26 @@ import {
   workspaceOwnerId,
   workspaceOwnerSelect,
 } from "@/lib/billing";
-import { PROMPT_LIMIT_ERROR } from "@/lib/plan-limits";
+import { AGENT_BUSY_ERROR, PROMPT_LIMIT_ERROR } from "@/lib/plan-limits";
 import { agentTools, type AgentContext } from "@/lib/agent-tools";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 60;
 
-const MODEL = process.env.AGENT_MODEL ?? "gemini-3.8-flash";
+// gemini-3.8-flash was returning 503 "high demand" or timing out; 3.5-flash is stable. Override with AGENT_MODEL.
+const MODEL = process.env.AGENT_MODEL ?? "gemini-3.5-flash";
+
+// Overload and rate limits are worth telling the user apart from other failures: retrying later helps.
+// The SDK retries first, so the provider error may be wrapped (RetryError.lastError, or a cause).
+function isProviderBusy(error: unknown): boolean {
+  for (let current = error, depth = 0; current && typeof current === "object" && depth < 4; depth++) {
+    const e = current as { statusCode?: number; message?: string; lastError?: unknown; cause?: unknown };
+    if (e.statusCode === 503 || e.statusCode === 429) return true;
+    if (/high demand|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded/i.test(e.message ?? "")) return true;
+    current = e.lastError ?? e.cause;
+  }
+  return false;
+}
 
 // The client already trims its canvas/doc listings; this caps what a hand-made request can send.
 const MAX_CONTEXT_CHARS = 20_000;
@@ -26,8 +39,8 @@ function instructionsFor(workspace: { name: string; description: string | null }
 Workspace: "${workspace.name}"${workspace.description ? ` — ${workspace.description}` : ""}
 
 You change the workspace only through tools:
-- create_tables: database/ERD tables and foreign-key relations on the canvas.
-- create_diagram: flowcharts, architectures, user flows and processes on the canvas.
+- create_tables: a database schema (ERD): tables and foreign-key relations on the canvas. Give it a short title.
+- create_diagram: flowcharts, user flows, processes, architecture diagrams, mind maps and org charts on the canvas. Set kind to what it really is and give it a short title.
 - update_table: rename an existing table or add, change or remove its columns.
 - edit_shapes: delete shapes or change their text, by the [shape:…] ids in the canvas listing.
 - write_doc: the document, in markdown. Prefer "append" unless rewriting is clearly wanted.
@@ -36,6 +49,8 @@ You change the workspace only through tools:
 
 Guidelines:
 - By default do both: draw on the canvas and document it in the doc. If the user says "in the doc" or "on the canvas", keep to that surface.
+- Each drawing appears in its own titled frame (e.g. "Flowchart · Checkout"), laid out and styled automatically; never pass coordinates.
+- Diagrams: node labels of two to five words; ellipse for start and end, diamond for decisions (label the outgoing arrows, e.g. Yes / No), rectangle for steps. Leave color unset unless asked.
 - Don't redraw what is already on the canvas; add to it or edit it. Refer to existing tables by name in relations.
 - Ids in square brackets in the listings below are for tools only; never show them to the user.
 - Docs should be well structured: a title, short intro, sections with headings, lists and tables where useful.
@@ -120,7 +135,11 @@ export async function POST(req: Request) {
       },
     });
 
-    return result.toUIMessageStreamResponse({ sendReasoning: true });
+    return result.toUIMessageStreamResponse({
+      sendReasoning: true,
+      // This text becomes the client's error.message; never send raw provider errors to the browser.
+      onError: (error) => (isProviderBusy(error) ? AGENT_BUSY_ERROR : "agent_error"),
+    });
   } catch (error) {
     console.error("[agent]", error);
     await refund();

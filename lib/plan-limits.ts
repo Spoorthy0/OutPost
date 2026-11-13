@@ -7,6 +7,9 @@ export const FREE_MONTHLY_PROMPTS = 20;
 // Returned by /api/agent when the owner's monthly prompts are used up.
 export const PROMPT_LIMIT_ERROR = "prompt_limit_reached";
 
+// Returned by /api/agent when the model provider is overloaded or rate-limited (HTTP 503/429).
+export const AGENT_BUSY_ERROR = "agent_model_busy";
+
 export const UPGRADE_REASONS = {
   prompts: {
     title: "You're out of agent prompts",
