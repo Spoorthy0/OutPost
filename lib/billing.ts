@@ -12,10 +12,19 @@ export function entitlementsTag(ownerId: string) {
   return `entitlements:${ownerId}`;
 }
 
-// Paid prompt allowances come from Clerk plan features (checked in order), per member for team plans.
+// Feature slugs as configured in the Clerk dashboard (Billing → Plans → Features). They must match
+// exactly, or a paid plan silently behaves like Free. Each list holds the slug Clerk uses plus any
+// older name, so renaming a feature in Clerk doesn't lock paying customers out.
+const FEATURES = {
+  publicSharing: ["public_share_links", "public_sharing"],
+  pdfExport: ["pdf_export"],
+  unlimitedWorkspaces: ["unlimited_workspaces"],
+};
+
+// Paid prompt allowances (checked in order, largest first), per member for team plans.
 const PROMPT_FEATURES = [
-  { feature: "agent_prompts_2000", perMember: 2000 },
-  { feature: "agent_prompts_500", perMember: 500 },
+  { features: ["2000_prompts_per_month", "agent_prompts_2000"], perMember: 2000 },
+  { features: ["agent_prompts_500"], perMember: 500 },
 ];
 
 // Everything is scoped to an "owner": a Clerk org id for org workspaces, or a Clerk user id for
@@ -64,7 +73,8 @@ export async function getEntitlements(ownerId: string) {
     if (status !== 404) cacheLife("seconds");
   }
 
-  const paid = PROMPT_FEATURES.find(({ feature }) => features.has(feature));
+  const hasAny = (slugs: string[]) => slugs.some((slug) => features.has(slug));
+  const paid = PROMPT_FEATURES.find((tier) => hasAny(tier.features));
   let promptLimit = FREE_MONTHLY_PROMPTS;
   if (paid) {
     const members = isOrg
@@ -78,9 +88,9 @@ export async function getEntitlements(ownerId: string) {
     isPaid: !!paid,
     planName,
     promptLimit,
-    unlimitedWorkspaces: features.has("unlimited_workspaces"),
-    publicSharing: features.has("public_sharing"),
-    pdfExport: features.has("pdf_export"),
+    unlimitedWorkspaces: hasAny(FEATURES.unlimitedWorkspaces),
+    publicSharing: hasAny(FEATURES.publicSharing),
+    pdfExport: hasAny(FEATURES.pdfExport),
   };
 }
 
