@@ -89,6 +89,7 @@ async function Workspace({ params, searchParams }: PageProps<"/workspace/[id]">)
               initialShareToken={workspace.shareToken}
               canShare={publicSharing}
               canExportPdf={pdfExport}
+              isTeamWorkspace={!!workspace.clerkOrgId}
             />
             <AgentToggleButton workspaceId={workspace.id} initialPrompt={initialPrompt} />
           </>
