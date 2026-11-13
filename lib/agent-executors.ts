@@ -41,7 +41,8 @@ import {
 // Runs the agent's tool calls against the live editors, in the browser. Each returns a short
 // result the model reads back, including when a surface isn't open in the current view.
 
-type Editors = { canvasEditor: Editor | null; docEditor: DocEditor | null };
+// canvasVisible: the canvas is on screen, though its editor may still be connecting to sync.
+type Editors = { canvasEditor: Editor | null; docEditor: DocEditor | null; canvasVisible?: boolean };
 type ToolResult = { ok: true; summary: string } | { ok: false; error: string };
 
 const MAX_SUMMARY_SHAPES = 150;
@@ -99,12 +100,18 @@ function describeDoc(editor: DocEditor) {
   return doc;
 }
 
-export function buildAgentContext({ canvasEditor, docEditor }: Editors): AgentContext {
+export function buildAgentContext({ canvasEditor, docEditor, canvasVisible }: Editors): AgentContext {
   const doc = docEditor ? describeDoc(docEditor) : "";
+  // A canvas that's on screen but still connecting counts as open: canvas tools wait for it.
+  const canvas = canvasEditor
+    ? describeCanvas(canvasEditor)
+    : canvasVisible
+      ? "(still connecting; it will be ready by the time your tools run, so draw as usual)"
+      : "";
   return {
-    canvasOpen: !!canvasEditor,
+    canvasOpen: !!canvasEditor || !!canvasVisible,
     docOpen: !!docEditor,
-    canvas: canvasEditor ? describeCanvas(canvasEditor) : "",
+    canvas,
     doc: doc || (docEditor ? "(empty)" : ""),
   };
 }
@@ -566,6 +573,8 @@ function clearCanvas(editor: Editor): ToolResult {
 
 const NOT_OPEN = {
   canvas: "The canvas isn't open in the current view. Ask the user to switch to the Canvas or Both view.",
+  canvasConnecting:
+    "The canvas is open but couldn't connect to the live sync server in time. Ask the user to reload the page and try again; switching views won't help.",
   doc: "The doc isn't open in the current view. Ask the user to switch to the Doc or Both view.",
 };
 
@@ -661,9 +670,11 @@ async function writeDoc(editor: DocEditor, input: z.infer<typeof writeDocInput>)
 const queues = { canvas: Promise.resolve(), doc: Promise.resolve() };
 const DOC_TOOLS = new Set(["write_doc", "edit_doc"]);
 
-export function runAgentTool(toolName: string, rawInput: unknown, editors: Editors): Promise<ToolResult> {
+// Takes a getter rather than the editors themselves: a queued tool runs later, and a canvas that is
+// still connecting gets its editor in the meantime.
+export function runAgentTool(toolName: string, rawInput: unknown, getEditors: () => Editors): Promise<ToolResult> {
   const surface = DOC_TOOLS.has(toolName) ? "doc" : "canvas";
-  const result = queues[surface].then(() => runTool(toolName, rawInput, editors));
+  const result = queues[surface].then(() => runTool(toolName, rawInput, getEditors));
   queues[surface] = result.then(
     () => undefined,
     () => undefined
@@ -671,35 +682,52 @@ export function runAgentTool(toolName: string, rawInput: unknown, editors: Edito
   return result;
 }
 
-async function runTool(toolName: string, rawInput: unknown, { canvasEditor, docEditor }: Editors): Promise<ToolResult> {
+// A canvas on screen whose editor isn't ready yet is still connecting to the sync server: wait
+// for it rather than failing the drawing outright.
+const CANVAS_CONNECT_WAIT_MS = 20_000;
+
+async function waitForCanvas(getEditors: () => Editors) {
+  const deadline = Date.now() + CANVAS_CONNECT_WAIT_MS;
+  let editors = getEditors();
+  while (!editors.canvasEditor && editors.canvasVisible && Date.now() < deadline) {
+    await sleep(250);
+    editors = getEditors();
+  }
+  return editors;
+}
+
+async function runTool(toolName: string, rawInput: unknown, getEditors: () => Editors): Promise<ToolResult> {
+  const editors = DOC_TOOLS.has(toolName) ? getEditors() : await waitForCanvas(getEditors);
+  const { canvasEditor, docEditor } = editors;
+  const canvasMissing = editors.canvasVisible ? NOT_OPEN.canvasConnecting : NOT_OPEN.canvas;
   try {
     switch (toolName) {
       case "create_tables": {
-        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        if (!canvasEditor) return { ok: false, error: canvasMissing };
         const input = createTablesInput.parse(rawInput);
         canvasEditor.markHistoryStoppingPoint("agent: create tables");
         return await createTables(canvasEditor, input);
       }
       case "create_diagram": {
-        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        if (!canvasEditor) return { ok: false, error: canvasMissing };
         const input = createDiagramInput.parse(rawInput);
         canvasEditor.markHistoryStoppingPoint("agent: create diagram");
         return await createDiagram(canvasEditor, input);
       }
       case "clear_canvas": {
-        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        if (!canvasEditor) return { ok: false, error: canvasMissing };
         clearCanvasInput.parse(rawInput ?? {});
         canvasEditor.markHistoryStoppingPoint("agent: clear canvas");
         return clearCanvas(canvasEditor);
       }
       case "update_table": {
-        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        if (!canvasEditor) return { ok: false, error: canvasMissing };
         const input = updateTableInput.parse(rawInput);
         canvasEditor.markHistoryStoppingPoint("agent: update table");
         return updateTable(canvasEditor, input);
       }
       case "edit_shapes": {
-        if (!canvasEditor) return { ok: false, error: NOT_OPEN.canvas };
+        if (!canvasEditor) return { ok: false, error: canvasMissing };
         const input = editShapesInput.parse(rawInput);
         canvasEditor.markHistoryStoppingPoint("agent: edit shapes");
         return editShapes(canvasEditor, input);

@@ -8,7 +8,7 @@ import type { DocEditor } from "@/components/WorkspaceEditorsContext";
 import { buildAgentContext, runAgentTool } from "@/lib/agent-executors";
 import { refreshPromptUsage } from "@/components/PlanButton";
 
-type Editors = { canvasEditor: Editor | null; docEditor: DocEditor | null };
+type Editors = { canvasEditor: Editor | null; docEditor: DocEditor | null; canvasVisible: boolean };
 
 // The workspace agent's chat. Every request carries a snapshot of the canvas and doc so the
 // model sees what's there now; its tool calls run here, on the live editors, and the chat
@@ -43,7 +43,7 @@ export function useWorkspaceAgentChat(workspaceId: string, editors: Editors) {
       if (toolCall.dynamic) return;
       // Drawing runs step by step, so the result comes later. Not awaited, per the SDK: awaiting
       // inside onToolCall can deadlock the chat. The chat resubmits once every output is in.
-      void runAgentTool(toolCall.toolName, toolCall.input, editorsRef.current).then((output) =>
+      void runAgentTool(toolCall.toolName, toolCall.input, () => editorsRef.current).then((output) =>
         chat.addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output })
       );
     },

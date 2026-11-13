@@ -15,8 +15,8 @@ import { useWorkspaceAgentChat } from "@/hooks/use-workspace-agent-chat";
 // closing/reopening the panel doesn't wipe the conversation.
 export function AgentToggleButton({ workspaceId, initialPrompt }: { workspaceId: string; initialPrompt?: string }) {
   const [isOpen, setIsOpen] = useState(!!initialPrompt);
-  const { canvasEditor, docEditor } = useWorkspaceEditors();
-  const chat = useWorkspaceAgentChat(workspaceId, { canvasEditor, docEditor });
+  const { canvasEditor, docEditor, canvasVisible } = useWorkspaceEditors();
+  const chat = useWorkspaceAgentChat(workspaceId, { canvasEditor, docEditor, canvasVisible });
   const promptSent = useRef(false);
   // document.body only exists on the client.
   const mounted = useSyncExternalStore(
