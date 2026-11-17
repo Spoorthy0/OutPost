@@ -27,6 +27,7 @@ import { saveCanvasContent } from "@/actions/canvas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeUtil";
 import { AddEntityTableButton } from "@/components/EntityTable/AddEntityTableButton";
+import { ExportSchemaButton } from "@/components/EntityTable/ExportSchemaButton";
 import { registerArrowRowSnapping } from "@/components/EntityTable/snapArrowToRow";
 import { useWorkspaceEditors } from "@/components/WorkspaceEditorsContext";
 import { colorForUser } from "@/lib/utils";
@@ -66,7 +67,7 @@ const useCanvasSync = SYNC_URL
   : ({ roomId, users }: SyncOptions) => useSyncDemo({ roomId, shapeUtils, users });
 
 // A cleaner, single-page canvas: no style panel, page menu or main menu, and a vertical toolbar
-// on the left with our Add table button.
+// on the left with our Add table and Export schema buttons.
 const components: TLComponents = {
   StylePanel: null,
   PageMenu: null,
@@ -74,6 +75,7 @@ const components: TLComponents = {
   Toolbar: () => (
     <DefaultToolbar orientation="vertical">
       <AddEntityTableButton />
+      <ExportSchemaButton />
       <DefaultToolbarContent />
     </DefaultToolbar>
   ),

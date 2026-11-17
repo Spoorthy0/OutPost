@@ -2,12 +2,19 @@
   "name": "outpost",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.21.2",
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbo": "next dev",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "prisma generate && (prisma skills sync || exit 0)"
   },
   "dependencies": {
@@ -54,9 +61,11 @@
     "dotenv": "^18.0.9",
     "eslint": "^9",
     "eslint-config-next": "16.4.4",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.32",
     "prisma": "^7.10.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }
