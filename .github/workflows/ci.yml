@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, type-check, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The lockfile is written by npm 11 (see packageManager in package.json).
+      - run: npm install -g npm@11.21.2
+
+      # Also runs `prisma generate` (postinstall), which doesn't need a database.
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    needs: check
+    # The build needs real keys; add them under Settings → Secrets and variables → Actions.
+    env:
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_TLDRAW_LICENSE_KEY: ${{ secrets.NEXT_PUBLIC_TLDRAW_LICENSE_KEY }}
+    steps:
+      - name: Skip without secrets
+        id: secrets
+        run: |
+          if [ -z "$CLERK_SECRET_KEY" ]; then
+            echo "Build secrets aren't set; skipping the build check."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.secrets.outputs.skip != 'true'
+        run: npm install -g npm@11.21.2 && npm ci
+
+      - if: steps.secrets.outputs.skip != 'true'
+        run: npm run build

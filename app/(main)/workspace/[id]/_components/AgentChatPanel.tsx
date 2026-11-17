@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Square,
   Table2,
+  Undo2,
   Wand2,
   Workflow,
   type LucideIcon,
@@ -257,6 +258,20 @@ export function AgentChatPanel({ chat, isReady }: { chat: WorkspaceAgentChat; is
                   </div>
                 )
               )
+            )}
+
+            {chat.canUndoRun && messages.length > 0 && (
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={chat.undoRun}
+                  title="Removes everything this prompt drew or changed on the canvas. Redo with Ctrl+Shift+Z."
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/3 px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground"
+                >
+                  <Undo2 className="size-3" />
+                  Undo canvas changes
+                </button>
+              </div>
             )}
 
             {status === "submitted" && (

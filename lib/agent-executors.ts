@@ -12,7 +12,7 @@ import {
   type TLShapeId,
   type TLShapePartial,
 } from "tldraw";
-import type { z } from "zod";
+import { ZodError, prettifyError, type z } from "zod";
 import type { DocEditor } from "@/components/WorkspaceEditorsContext";
 import {
   ENTITY_TABLE_TYPE,
@@ -662,6 +662,21 @@ async function writeDoc(editor: DocEditor, input: z.infer<typeof writeDocInput>)
   return { ok: true, summary: `Wrote ${blocks.length} block(s) to the doc (${input.mode}).` };
 }
 
+// ─── Undoing a whole run ─────────────────────────────────────────────────────────────────────────
+
+// One prompt can run several tools, each its own undo step. A run starts with a mark; undoing it
+// squashes everything since into one step and undoes that, so one click (or one redo) covers it.
+export function startAgentRun(editor: Editor) {
+  return editor.markHistoryStoppingPoint("agent run");
+}
+
+export function undoAgentRun(editor: Editor, markId: string) {
+  if (editor.isDisposed) return false;
+  editor.squashToMark(markId);
+  editor.undo();
+  return true;
+}
+
 // ─── Dispatch ────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -744,6 +759,11 @@ async function runTool(toolName: string, rawInput: unknown, getEditors: () => Ed
         return { ok: false, error: `Unknown tool ${toolName}` };
     }
   } catch (error) {
+    // A schema mismatch goes back to the model as a short list of what was wrong, so its automatic
+    // follow-up request can retry the call with fixed input.
+    if (error instanceof ZodError) {
+      return { ok: false, error: `Invalid input for ${toolName}; fix these and call it again:\n${prettifyError(error)}` };
+    }
     return { ok: false, error: error instanceof Error ? error.message : "The tool failed." };
   }
 }
