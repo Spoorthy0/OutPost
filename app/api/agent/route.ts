@@ -19,6 +19,17 @@ export const maxDuration = 60;
 // gemini-3.8-flash was returning 503 "high demand" or timing out; 3.5-flash is stable. Override with AGENT_MODEL.
 const MODEL = process.env.AGENT_MODEL ?? "gemini-3.5-flash";
 
+// Unbounded thinking made the agent slow to start replying, and it can think again before each
+// tool step. Canvas and doc edits rarely need deep reasoning, so default to "low".
+// Override with AGENT_THINKING_LEVEL (minimal | low | medium | high).
+const THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
+type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+const THINKING_LEVEL: ThinkingLevel = THINKING_LEVELS.includes(
+  process.env.AGENT_THINKING_LEVEL as ThinkingLevel,
+)
+  ? (process.env.AGENT_THINKING_LEVEL as ThinkingLevel)
+  : "low";
+
 // Overload and rate limits are worth telling the user apart from other failures: retrying later helps.
 // The SDK retries first, so the provider error may be wrapped (RetryError.lastError, or a cause).
 function isProviderBusy(error: unknown): boolean {
@@ -128,7 +139,9 @@ export async function POST(req: Request) {
       }),
       tools: agentTools,
       stopWhen: stepCountIs(5),
-      providerOptions: { google: { thinkingConfig: { includeThoughts: true } } },
+      providerOptions: {
+        google: { thinkingConfig: { includeThoughts: true, thinkingLevel: THINKING_LEVEL } },
+      },
       onError: async ({ error }) => {
         console.error("[agent]", error);
         await refund();
