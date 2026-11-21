@@ -25,6 +25,12 @@ import {
   type EntityTableShape,
 } from "@/components/EntityTable/EntityTableShapeUtil";
 import { connectTableRows } from "@/components/EntityTable/snapArrowToRow";
+import {
+  DIAGRAM_FRAME_PAD,
+  fitDiagramFrame,
+  holdDiagramFit,
+  releaseDiagramFit,
+} from "@/components/DiagramFrame/DiagramFrameShapeUtil";
 import { layeredLayout } from "@/lib/canvas-layout";
 import {
   DIAGRAM_KINDS,
@@ -127,7 +133,8 @@ const CAMERA_MS = 500;
 const MAX_DRAW_MS = 7000;
 
 // A drawing sits inside a frame titled with what it is; tldraw draws the title above the frame.
-const FRAME_PAD = 72;
+// The frame then keeps fitting its content as people move things (see DiagramFrameShapeUtil).
+const FRAME_PAD = DIAGRAM_FRAME_PAD;
 const FRAME_TITLE_SPACE = 48;
 const FRAME_SEPARATION = 160;
 
@@ -174,6 +181,7 @@ function createPlayer(editor: Editor, counts: { nodes: number; edges: number }) 
   const planned = counts.nodes * NODE_STEP_MS + counts.edges * EDGE_STEP_MS;
   const scale = instant ? 0 : Math.min(1, MAX_DRAW_MS / Math.max(planned, 1));
   const created: TLShapeId[] = [];
+  let frameId: TLShapeId | undefined;
 
   const assertOpen = () => {
     if (editor.isDisposed) throw new CanvasClosedError();
@@ -193,7 +201,17 @@ function createPlayer(editor: Editor, counts: { nodes: number; edges: number }) 
       editor.zoomToBounds(view, { inset: 48, targetZoom: 1, ...(!instant && { animation: { duration: CAMERA_MS } }) });
 
       const id = createShapeId();
-      editor.createShape<TLFrameShape>({ id, type: "frame", x: origin.x, y: origin.y, props: { w, h, name } });
+      editor.createShape<TLFrameShape>({
+        id,
+        type: "frame",
+        x: origin.x,
+        y: origin.y,
+        props: { w, h, name },
+        meta: { diagram: true },
+      });
+      // Its size is fixed until the drawing is done, then it fits its content.
+      holdDiagramFit(editor, id);
+      frameId = id;
       created.push(id);
       if (!instant) await sleep(CAMERA_MS);
       return id;
@@ -219,6 +237,7 @@ function createPlayer(editor: Editor, counts: { nodes: number; edges: number }) 
         .filter((shape): shape is TLShape => !!shape && shape.opacity !== 1)
         .map((shape) => ({ id: shape.id, type: shape.type, opacity: 1 }));
       if (faded.length) editor.updateShapes(faded);
+      if (frameId) releaseDiagramFit(editor, frameId);
     },
   };
 }
@@ -239,7 +258,7 @@ function createArrow(
       dash: "solid",
       size: "s",
       font: "sans",
-      color: "grey",
+      color: "white",
       labelColor: "white",
       arrowheadEnd: "arrow",
       richText: toRichText(label ?? ""),
@@ -269,30 +288,6 @@ function bindArrow(
       snap: "none",
     },
   });
-}
-
-// A frame clips what's inside it, so when a table grows (update_table), its frame grows with it.
-function growFrameToFit(editor: Editor, shapeId: TLShapeId) {
-  const shape = editor.getShape(shapeId);
-  const frame = shape && editor.getShape(shape.parentId as TLShapeId);
-  if (!frame || frame.type !== "frame") return;
-  const frameBounds = editor.getShapePageBounds(frame);
-  if (!frameBounds) return;
-
-  const { w, h } = (frame as TLFrameShape).props;
-  let nextW = w;
-  let nextH = h;
-  for (const childId of editor.getSortedChildIdsForParent(frame.id)) {
-    const child = editor.getShape(childId);
-    if (!child || child.type === "arrow") continue;
-    const bounds = editor.getShapePageBounds(child);
-    if (!bounds) continue;
-    nextW = Math.max(nextW, bounds.maxX - frameBounds.minX + FRAME_PAD);
-    nextH = Math.max(nextH, bounds.maxY - frameBounds.minY + FRAME_PAD);
-  }
-  if (nextW !== w || nextH !== h) {
-    editor.updateShape<TLFrameShape>({ id: frame.id, type: "frame", props: { w: nextW, h: nextH } });
-  }
 }
 
 async function createTables(editor: Editor, input: z.infer<typeof createTablesInput>): Promise<ToolResult> {
@@ -532,7 +527,8 @@ function updateTable(editor: Editor, input: z.infer<typeof updateTableInput>): T
     type: ENTITY_TABLE_TYPE,
     props: { name: input.rename ?? table.props.name, fields, h: heightFor(fields) },
   });
-  growFrameToFit(editor, table.id);
+  // Its diagram's frame grows (or shrinks) with it.
+  if (table.parentId) fitDiagramFrame(editor, table.parentId as TLShapeId);
   return { ok: true, summary: `Updated table ${input.rename ?? table.props.name}.` };
 }
 

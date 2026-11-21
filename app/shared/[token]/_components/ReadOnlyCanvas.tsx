@@ -3,8 +3,10 @@
 import { Tldraw, type Editor, type TLEditorSnapshot } from "tldraw";
 import "tldraw/tldraw.css";
 import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeUtil";
+import { DiagramFrameShapeUtil } from "@/components/DiagramFrame/DiagramFrameShapeUtil";
 
-const shapeUtils = [EntityTableShapeUtil];
+// Diagram frames look as they do in the workspace: orange, and nothing clipped at their edges.
+const shapeUtils = [EntityTableShapeUtil, DiagramFrameShapeUtil];
 
 // The canvas as last saved (Canvas.content), loaded locally with no sync and no saving. Viewers
 // can pan and zoom, but not change anything.

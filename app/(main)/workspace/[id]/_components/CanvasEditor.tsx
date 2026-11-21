@@ -29,6 +29,10 @@ import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeU
 import { AddEntityTableButton } from "@/components/EntityTable/AddEntityTableButton";
 import { ExportSchemaButton } from "@/components/EntityTable/ExportSchemaButton";
 import { registerArrowRowSnapping } from "@/components/EntityTable/snapArrowToRow";
+import {
+  DiagramFrameShapeUtil,
+  registerDiagramFrameFitting,
+} from "@/components/DiagramFrame/DiagramFrameShapeUtil";
 import { useWorkspaceEditors } from "@/components/WorkspaceEditorsContext";
 import { colorForUser } from "@/lib/utils";
 
@@ -42,7 +46,12 @@ function notifySaveFailure() {
   toast.error("Couldn't back up the canvas. Your changes are still live; we'll retry on the next edit.");
 }
 
+// Shapes in the synced store's schema.
 const shapeUtils = [EntityTableShapeUtil];
+// What the editor draws them with: the same, plus a frame util that changes how agent diagrams'
+// frames behave (no clipping, fit to content). Its props match the built-in frame, so the store
+// schema stays the same; the sync hooks reject a second "frame" util, so it's passed only here.
+const editorShapeUtils = [...shapeUtils, DiagramFrameShapeUtil];
 
 // Our own sync server (the tldraw-sync/ Cloudflare Worker). Without it, tldraw's public demo
 // server is used: fine for trying things out, but rooms there are public and get wiped.
@@ -168,6 +177,8 @@ export function CanvasEditor({
 
     // Arrows bound to an ERD table snap to the nearest row and stay on that column (see snapArrowToRow.ts).
     const stopRowSnapping = registerArrowRowSnapping(editor);
+    // Diagram frames grow and shrink with their content (see DiagramFrameShapeUtil.ts).
+    const stopDiagramFitting = registerDiagramFrameFitting(editor);
 
     // On unmount (e.g. switching to the Doc view): save any pending edit now, while the editor is
     // still alive, instead of dropping it, and clear it so nothing keeps a disposed editor.
@@ -178,6 +189,7 @@ export function CanvasEditor({
         save();
       }
       stopRowSnapping();
+      stopDiagramFitting();
       setCanvasEditor(null);
     };
   };
@@ -193,7 +205,7 @@ export function CanvasEditor({
         onMount={handleMount}
         components={components}
         colorScheme="dark"
-        shapeUtils={shapeUtils}
+        shapeUtils={editorShapeUtils}
         licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
       />
     </div>

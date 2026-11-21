@@ -8,10 +8,16 @@ import {
   tipTapDefaultExtensions,
 } from "tldraw";
 import { EntityTableShapeUtil } from "@/components/EntityTable/EntityTableShapeUtil";
+import { DiagramFrameShapeUtil } from "@/components/DiagramFrame/DiagramFrameShapeUtil";
 
 // A real tldraw Editor with no UI, for testing code that reads or changes the canvas.
 export function createTestEditor() {
-  const shapeUtils = [...defaultShapeUtils, EntityTableShapeUtil];
+  // The app's frame util replaces tldraw's, as <Tldraw shapeUtils> does in the canvas.
+  const shapeUtils = [
+    ...defaultShapeUtils.filter((util) => util.type !== "frame"),
+    EntityTableShapeUtil,
+    DiagramFrameShapeUtil,
+  ];
   const store = createTLStore({ shapeUtils, bindingUtils: defaultBindingUtils });
   const container = document.createElement("div");
   document.body.appendChild(container);
