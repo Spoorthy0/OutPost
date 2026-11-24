@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { getSharedWorkspace, previewDescription } from "@/lib/shared-workspace";
 import { SharedSurface } from "./_components/SharedSurface";
+import SharedLinkNotFound from "./not-found";
 
 // Link previews (Slack, WhatsApp, X...) show the workspace's own name and description; the
 // preview image comes from opengraph-image.tsx next to this file. Shared links are unguessable
@@ -38,7 +38,10 @@ export default function SharedWorkspacePage({ params }: PageProps<"/shared/[toke
 async function SharedWorkspace({ params }: Pick<PageProps<"/shared/[token]">, "params">) {
   const { token } = await params;
   const workspace = await getSharedWorkspace(token);
-  if (!workspace) notFound();
+  // Render the unavailable screen directly: throwing notFound() from inside this streamed
+  // <Suspense> boundary crashes the page on the client in production builds (React #419/#441)
+  // instead of showing not-found.tsx. The response is already a 200 with noindex either way.
+  if (!workspace) return <SharedLinkNotFound />;
 
   return (
     <SharedSurface
